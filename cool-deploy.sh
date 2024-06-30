@@ -188,17 +188,13 @@ fi
 echo
 cd $WASP_PROJECT_DIR
 
-echo -e "WASP_WEB_CLIENT_URL=$REACT_APP_API_URL"
-echo -e "WASP_SERVER_URL=https://app.server.com"
-echo -e "PORT=3001"
-echo -e "DATABASE_URL="
-echo -e "JWT_SECRET="
+echo -e "Your App is available at: $REACT_APP_API_URL"
+echo
 
 # Get the end time and calculate the difference
 end_time=$(date +%s)
 elapsed_time=$((end_time - start_time))
 
-echo
 if [ $elapsed_time -gt 59 ]; then
     minutes=$((elapsed_time / 60))
     seconds=$((elapsed_time % 60))
