@@ -180,10 +180,13 @@ echo
 echo -e "\033[1;33mWHEN READY TO DEPLOY:\033[0m"
 echo -e "\033[33m- Uncomment the DATABASE_URL line in \`.env.server\`.\033[0m"
 echo -e "\033[33m- Make sure the env variables in \`.coolify.env\` are added to the Coolfy project.\033[0m"
-echo -e `\033[33m- Add the following to your \`main.wasp\` file:\033[0m
-  db: {
-    system: PostgreSQL,
-  },`
+echo -e "\033[33m- Add the following to your \`main.wasp\` file:\033[0m
+\033[35mapp\033[0m yourWaspApp \033[33m{\033[0m
+  [...]
+  db\033[36m:\033[0m \033[35m{\033[0m
+    system\033[36m:\033[0m \033[31mPostgreSQL\033[36m,\033[0m
+  \033[35m}\033[36m,\033[0m
+\033[33m}\033[0m"
 echo -e "\033[33m- Run \`cool-deploy.sh\` to deploy the project.\033[0m"
 echo -e "\033[33m- And Profit!\033[0m"
 echo
