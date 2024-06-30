@@ -146,6 +146,20 @@ else
   echo -e "\033[33m✅ --- \`.gitignore\` is alread aware of the Coolify Environment file ---\033[0m"
 fi
 
+# Check if a .env.server file exists, if not, create one
+if [ ! -e .env.server ]; then
+  touch .env.server
+  echo -e "\033[33m✅ --- Created a new .env.server file ---\033[0m"
+fi
+
+if ! grep -q -z -E "DATABASE_URL" .env.server; then
+  echo "# Database URL (update this with internal Coolify URL if so desired)" >> .env.server
+  echo "DATABASE_URL=$WASP_DATABASE_URL" >> .env.server
+  echo -e "\033[33m✅ ---  Added DATABASE_URL to \`.env.server\` ---\033[0m"
+else
+  echo -e "\033[33m✅ --- \`.env.server\` already has DATABASE_URL ---\033[0m"
+fi
+
 echo
 echo
 echo -e "\033[1;32m🤖 --- RUNNING INITIAL BUILD, GIT COMMIT AND PUSH...\033[0m"
