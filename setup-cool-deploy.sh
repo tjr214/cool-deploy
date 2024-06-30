@@ -157,29 +157,33 @@ if [ ! -e .env.server ]; then
 fi
 
 if ! grep -q -z -E "DATABASE_URL" .env.server; then
-  echo "# Database URL (update this with internal Coolify URL if so desired)" >> .env.server
-  echo "DATABASE_URL=$WASP_DATABASE_URL" >> .env.server
-  echo -e "\033[33m✅ ---  Added DATABASE_URL to \`.env.server\` ---\033[0m"
+  echo "# Database URL (uncomment when ready to deploy to Coolify)" >> .env.server
+  echo "# DATABASE_URL=$WASP_DATABASE_URL" >> .env.server
+  echo -e "\033[33m✅ --- Added DATABASE_URL to \`.env.server\` ---\033[0m"
 else
   echo -e "\033[33m✅ --- \`.env.server\` already has DATABASE_URL ---\033[0m"
 fi
 
+# Clean up and exit
 echo
 echo
-echo -e "\033[1;32m🤖 --- RUNNING INITIAL BUILD, GIT COMMIT AND PUSH...\033[0m"
+echo -e "\033[1;32m🤖 --- CLEANING UP AND EXITING CLEANLY...\033[0m"
 echo
-
-# Run Initial Deployment!
-if (./cool-deploy.sh); then
-  echo
-  echo -e "\033[1;32m🤖 --- CLEANING UP AND EXITING CLEANLY...\033[0m"
-  echo
-  echo "ALL DONE! 🎉"
-else
-  echo
-  echo -e "\033[1;31m💀 --- COOL-DEPLOY FAILED! See above for details... CLEANING UP AND EXITING. ---\033[0m"
-  echo
-fi
 
 # Delete the setup script
 rm -rf setup.sh
+
+# Print ready-to-deploy message
+echo "ALL DONE! 🎉"
+echo
+echo
+echo -e "\033[1;33mWHEN READY TO DEPLOY:\033[0m"
+echo -e "\033[33m- Uncomment the DATABASE_URL line in \`.env.server\`.\033[0m"
+echo -e "\033[33m- Make sure the env variables in \`.coolify.env\` are added to the Coolfy project.\033[0m"
+echo -e `\033[33m- Add the following to your \`main.wasp\` file:\033[0m
+  db: {
+    system: PostgreSQL,
+  },`
+echo -e "\033[33m- Run \`cool-deploy.sh\` to deploy the project.\033[0m"
+echo -e "\033[33m- And Profit!\033[0m"
+echo
