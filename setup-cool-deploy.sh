@@ -187,6 +187,6 @@ echo -e "\033[33m- Add the following to your \`main.wasp\` file:\033[0m
     system\033[36m:\033[0m \033[31mPostgreSQL\033[36m,\033[0m
   \033[35m}\033[36m,\033[0m
 \033[33m}\033[0m"
-echo -e "\033[33m- Run \`cool-deploy.sh\` to deploy the project.\033[0m"
+echo -e "\033[33m- Run \`./cool-deploy.sh\` to deploy the project.\033[0m"
 echo -e "\033[33m- And Profit!\033[0m"
 echo
