@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo
-echo -e "\033[1;32m🤖 --- LET'S GET COOL-DEPLOY SET UP...\033[0m"
+echo -e "\033[1;32m🤖 --- LET'S GET COOL-DEPLOY SET UP! ---\033[0m"
 
 SETTINGS_CONFIRM=0
 while [ $SETTINGS_CONFIRM -eq 0 ]; do
@@ -55,16 +55,15 @@ while [ $SETTINGS_CONFIRM -eq 0 ]; do
 
   # Print variables and confirm selections
   echo
-  echo -e "\033[1;36m🤖 --- PROJECT SETTINGS...\033[0m"
+  echo -e "\033[1;36m🤖 --- SETTINGS AND ENVIRONMENT CONFIGURATION ---\033[0m"
   echo
-  echo -e "WASP_WEB_CLIENT_URL=$REACT_APP_API_URL"
-  echo -e "WASP_SERVER_URL=$WASP_SERVER_URL"
-  echo -e "PORT=$WASP_SERVER_PORT"
-  echo -e "DATABASE_URL=$WASP_DATABASE_URL"
-  echo -e "JWT_SECRET=$WASP_JWT_SECRET"
-
-  echo -e "GIT_CLIENT_REPO=$WASP_GIT_CLIENT_REPO"
-  echo -e "GIT_SERVER_REPO=$WASP_GIT_SERVER_REPO"
+  echo -e "\033[1;34mWASP_WEB_CLIENT_URL\033[0m=$REACT_APP_API_URL"
+  echo -e "\033[1;34mWASP_SERVER_URL\033[0m=$WASP_SERVER_URL"
+  echo -e "\033[1;34mWASP_SERVER_PORT\033[0m=$WASP_SERVER_PORT"
+  echo -e "\033[1;34mDATABASE_URL\033[0m=$WASP_DATABASE_URL"
+  echo -e "\033[1;34mJWT_SECRET\033[0m=$WASP_JWT_SECRET"
+  echo -e "\033[1;34mGIT_CLIENT_REPO\033[0m=$WASP_GIT_CLIENT_REPO"
+  echo -e "\033[1;34mGIT_SERVER_REPO\033[0m=$WASP_GIT_SERVER_REPO"
   echo
 
   while true; do
@@ -89,43 +88,49 @@ while [ $SETTINGS_CONFIRM -eq 0 ]; do
       break
     fi
   done
-
-  echo
-  echo -e "\033[31m🛑 --- Settings not configured! Trying again... ---\033[0m"
+  if [ $SETTINGS_CONFIRM -eq 0 ]; then
+    echo
+    echo -e "\033[31m🛑 --- Settings not configured! Trying again... ---\033[0m"
+  fi
 done
 
 echo
 echo -e "\033[33m✅ --- Configured settings for \`cool-deploy.sh\`! ---\033[0m"
 echo
 
+echo
 echo -e "\033[1;32m🤖 --- DOWNLOADING AND CONFIGURING COOL-DEPLOY...\033[0m"
 echo
+echo
 
-# # Download `cool-deploy.sh` script to the current directory
-# if (curl -fsSL -o cool-deploy.sh https://github.com/tjr214/cool-deploy/raw/main/setup-cool-deploy.sh); then 
-#   chmod +x cool-deploy.sh
-#   echo -e "\033[33m✅ --- Successfully downloaded \`cool-deploy.sh\` script ---\033[0m"
-#   echo
-# else
-#   echo "🛑 --- Failed to download \`cool-deploy.sh\`! See above for errors... ---\033[0m"
-#   exit 1
-# fi
+# Download `cool-deploy.sh` script to the current directory
+if (curl -fsSL -o cool-deploy.sh https://github.com/tjr214/cool-deploy/raw/main/setup-cool-deploy.sh); then 
+  chmod +x cool-deploy.sh
+  echo -e "\033[33m✅ --- Successfully downloaded \`cool-deploy.sh\` script ---\033[0m"
+  echo
+else
+  echo
+  echo -e "\033[31m🛑 --- Failed to download \`cool-deploy.sh\`! See above for errors... ---\033[0m"
+  exit 1
+fi
 
-# # Download `template.coolify.env` file to the current directory
-# if (curl -fsSL -o .coolify.env https://github.com/tjr214/cool-deploy/raw/main/template.coolify.env); then 
-#   echo -e "\033[33m✅ --- Successfully downloaded Coolify Environment Template file ---\033[0m"
-#   echo
-# else
-#   echo "🛑 --- Failed to download \`template.coolify.env\`! See above for errors... ---\033[0m"
-#   exit 1
-# fi
+# Download `template.coolify.env` file to the current directory
+if (curl -fsSL -o .coolify.env https://github.com/tjr214/cool-deploy/raw/main/template.coolify.env); then 
+  echo -e "\033[33m✅ --- Successfully downloaded Coolify Environment Template file ---\033[0m"
+  echo
+else
+  echo
+  echo -e "\033[31m🛑 --- Failed to download \`template.coolify.env\`! See above for errors... ---\033[0m"
+  exit 1
+fi
 
 # Replace the placeholders in `.coolify.env`
 if (sed -i "" "s|{{FRONT_URL}}|$REACT_APP_API_URL|g; s|{{BACK_URL}}|$WASP_SERVER_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{GIT_CLIENT_URL}}|$WASP_GIT_CLIENT_REPO|g; s|{{GIT_SERVER_URL}}|$WASP_GIT_SERVER_REPO|g" .coolify.env); then 
   echo -e "\033[33m✅ --- Successfully configured Coolify Environment with your chosen settings ---\033[0m"
   echo
 else
-  echo "🛑 --- Failed to configure Coolify Environment file! See above for errors... ---\033[0m"
+  echo
+  echo -e "\033[31m🛑 --- Failed to configure Coolify Environment file! See above for errors... ---\033[0m"
   echo
   exit 1
 fi
@@ -142,7 +147,9 @@ else
 fi
 
 echo
+echo
 echo -e "\033[1;32m🤖 --- RUNNING INITIAL BUILD, GIT COMMIT AND PUSH...\033[0m"
+echo
 
 # Run Initial Deployment!
 if (./cool-deploy.sh); then
@@ -152,9 +159,9 @@ if (./cool-deploy.sh); then
   echo "ALL DONE! 🎉"
 else
   echo
-  echo -e "\033[1;31m🛑 --- COOL-DEPLOY FAILED! See above for details... CLEANING UP AND EXITING. ---\033[0m"
+  echo -e "\033[1;31m💀 --- COOL-DEPLOY FAILED! See above for details... CLEANING UP AND EXITING. ---\033[0m"
   echo
 fi
 
 # Delete the setup script
-# rm -rf setup.sh
+rm -rf setup.sh
