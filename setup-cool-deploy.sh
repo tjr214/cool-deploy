@@ -104,7 +104,7 @@ echo
 echo
 
 # Download `cool-deploy.sh` script to the current directory
-if (curl -fsSL -o cool-deploy.sh https://github.com/tjr214/cool-deploy/raw/main/setup-cool-deploy.sh); then 
+if (curl -fsSL -o cool-deploy.sh https://github.com/tjr214/cool-deploy/raw/main/cool-deploy.sh); then 
   chmod +x cool-deploy.sh
   echo -e "\033[33m✅ --- Successfully downloaded \`cool-deploy.sh\` script ---\033[0m"
   echo
@@ -145,11 +145,13 @@ if ! grep -q -z -E ".coolify\.env" .gitignore; then
 else
   echo -e "\033[33m✅ --- \`.gitignore\` is alread aware of the Coolify Environment file ---\033[0m"
 fi
+echo
 
 # Check if a .env.server file exists, if not, create one
 if [ ! -e .env.server ]; then
   touch .env.server
   echo -e "\033[33m✅ --- Created a new .env.server file ---\033[0m"
+  echo
 fi
 
 if ! grep -q -z -E "DATABASE_URL" .env.server; then
