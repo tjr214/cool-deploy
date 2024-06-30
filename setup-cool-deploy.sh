@@ -1,5 +1,7 @@
 #!/bin/bash
 
+rm -rf cool-deploy.sh
+
 echo
 echo -e "\033[1;32m🤖 --- LET'S GET COOL-DEPLOY SET UP! ---\033[0m"
 
