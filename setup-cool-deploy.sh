@@ -81,3 +81,6 @@ fi
 
 # Run Initial Deployment!
 # ./cool-deploy.sh
+
+# Delete the setup script
+rm -rf setup.sh
