@@ -62,10 +62,10 @@ rm -rf .coolify.env
 cp template.coolify.env .coolify.env
 
 # Download `cool-deploy.sh` script to the current directory
-# curl -o cool-deploy.sh https://raw.githubusercontent.com/tjr214/wasp-deploy-tools/main/cool-deploy.sh
+curl -o cool-deploy.sh https://github.com/tjr214/cool-deploy/raw/main/cool-deploy.sh
 
 # Download `template.coolify.env` file to the current directory
-# curl -o template.coolify.env https://raw.githubusercontent.com/tjr214/wasp-deploy-tools/main/template.coolify.env
+curl -o .coolify.env https://github.com/tjr214/cool-deploy/raw/main/template.coolify.env
 # mv template.coolify.env .coolify.env
 
 # Replace the placeholders in `.coolify.env`
