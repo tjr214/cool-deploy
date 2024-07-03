@@ -211,7 +211,7 @@ git init
 touch README.md && echo "# Client Build" > README.md
 git add .
 git commit -m "Cool-Deploy Setup: Client Init Commit [$TIMESTAMP]"
-git remote add origin $GIT_CLIENT_REPO
+git remote add origin $WASP_GIT_CLIENT_REPO
 git branch -M main
 if git push -u origin main; then
   echo
@@ -228,7 +228,7 @@ git init
 touch README.md && echo "# Server Build" > README.md
 git add .
 git commit -m "Cool-Deploy Setup: Server Init Commit [$TIMESTAMP]"
-git remote add origin $GIT_SERVER_REPO
+git remote add origin $WASP_GIT_SERVER_REPO
 git branch -M main
 if git push -u origin main; then
   echo
