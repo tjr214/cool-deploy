@@ -202,13 +202,15 @@ echo
 echo -e "\033[1;32m🤖 --- PERFORMING INITIAL COMMIT ON GIT REPOS...\033[0m"
 echo
 
+TIMESTAMP=$(date +%s)
+
 # Perform initial git commit on the client repo
 cd $MAIN_PROJECT_DIR
 cd client_build
 git init
 touch README.md && echo "# Client Build" > README.md
 git add .
-git commit -m "Cool-Deploy Setup: Init Commit [$TIMESTAMP]"
+git commit -m "Cool-Deploy Setup: Client Init Commit [$TIMESTAMP]"
 git remote add origin $GIT_CLIENT_REPO
 git branch -M main
 if git push -u origin main; then
@@ -225,7 +227,7 @@ cd server_build
 git init
 touch README.md && echo "# Server Build" > README.md
 git add .
-git commit -m "Cool-Deploy Setup: Init Commit [$TIMESTAMP]"
+git commit -m "Cool-Deploy Setup: Server Init Commit [$TIMESTAMP]"
 git remote add origin $GIT_SERVER_REPO
 git branch -M main
 if git push -u origin main; then
@@ -259,6 +261,8 @@ echo -e "\033[33m- And Profit!\033[0m"
 echo
 
 # Delete the setup script
+cd $WASP_PROJECT_DIR
 rm -rf setup.sh
+
 echo "ALL DONE! 🎉"
 echo

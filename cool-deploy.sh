@@ -130,58 +130,58 @@ fi
 
 cd $MAIN_PROJECT_DIR
 cd client_build
-if [ $DO_INIT -eq 1 ]; then
-  git init
-  git add .
-  git commit -m "Auto-Deploy: Init Commit [$TIMESTAMP]"
-  git remote add origin $GIT_CLIENT_REPO
-  git branch -M main
-  if git push -u origin main; then
-    echo
-    echo -e "\033[33m✅ --- Successfully pushed Client to GitHub and linked to remote origin. ---\033[0m"
-  else
-    echo
-    echo -e "\033[1;31m🛑 --- Failed to push Client to GitHub and link to remote origin! ---\033[0m"
-  fi
+# if [ $DO_INIT -eq 1 ]; then
+#   git init
+#   git add .
+#   git commit -m "Auto-Deploy: Init Commit [$TIMESTAMP]"
+#   git remote add origin $GIT_CLIENT_REPO
+#   git branch -M main
+#   if git push -u origin main; then
+#     echo
+#     echo -e "\033[33m✅ --- Successfully pushed Client to GitHub and linked to remote origin. ---\033[0m"
+#   else
+#     echo
+#     echo -e "\033[1;31m🛑 --- Failed to push Client to GitHub and link to remote origin! ---\033[0m"
+#   fi
+# else
+git add .
+git commit -m "Auto-Deploy: $COMMIT_MSG"
+if git push; then
+  echo
+  echo -e "\033[33m✅ --- Successfully pushed Client to GitHub. ---\033[0m"
 else
-  git add .
-  git commit -m "Auto-Deploy: $COMMIT_MSG"
-  if git push; then
-    echo
-    echo -e "\033[33m✅ --- Successfully pushed Client to GitHub. ---\033[0m"
-  else
-    echo
-    echo -e "\033[1;31m🛑 --- Failed to push Client to GitHub! ---\033[0m"
-  fi
+  echo
+  echo -e "\033[1;31m🛑 --- Failed to push Client to GitHub! ---\033[0m"
 fi
+# fi
 echo
 
 cd $MAIN_PROJECT_DIR
 cd server_build
-if [ $DO_INIT -eq 1 ]; then
-  git init
-  git add .
-  git commit -m "Auto-Deploy: Init Commit [$TIMESTAMP]"
-  git remote add origin $GIT_SERVER_REPO
-  git branch -M main
-  if git push -u origin main; then
-    echo
-    echo -e "\033[33m✅ --- Successfully pushed Server to GitHub and linked to remote origin. ---\033[0m"
-  else
-    echo
-    echo -e "\033[1;31m🛑 --- Failed to push Server to GitHub and link to remote origin! ---\033[0m"
-  fi
+# if [ $DO_INIT -eq 1 ]; then
+#   git init
+#   git add .
+#   git commit -m "Auto-Deploy: Init Commit [$TIMESTAMP]"
+#   git remote add origin $GIT_SERVER_REPO
+#   git branch -M main
+#   if git push -u origin main; then
+#     echo
+#     echo -e "\033[33m✅ --- Successfully pushed Server to GitHub and linked to remote origin. ---\033[0m"
+#   else
+#     echo
+#     echo -e "\033[1;31m🛑 --- Failed to push Server to GitHub and link to remote origin! ---\033[0m"
+#   fi
+# else
+git add .
+git commit -m "Auto-Deploy: $COMMIT_MSG"
+if git push; then
+  echo
+  echo -e "\033[33m✅ --- Successfully pushed Server to GitHub. ---\033[0m"
 else
-  git add .
-  git commit -m "Auto-Deploy: $COMMIT_MSG"
-  if git push; then
-    echo
-    echo -e "\033[33m✅ --- Successfully pushed Server to GitHub. ---\033[0m"
-  else
-    echo
-    echo -e "\033[1;31m🛑 --- Failed to push Server to GitHub! ---\033[0m"
-  fi
+  echo
+  echo -e "\033[1;31m🛑 --- Failed to push Server to GitHub! ---\033[0m"
 fi
+# fi
 echo
 cd $WASP_PROJECT_DIR
 
