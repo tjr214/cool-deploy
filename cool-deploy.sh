@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Source our variables from the generated env file
-source .coolify.env
+source .env.coolify
 
 # Project path variables
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -9,7 +9,6 @@ MAIN_PROJECT_DIR=$(dirname "$WASP_PROJECT_DIR")
 
 # Set some variables for internal use
 REACT_APP_API_URL=$WASP_WEB_CLIENT_URL
-DO_INIT=0
 
 # Get the start time
 start_time=$(date +%s)
@@ -21,7 +20,7 @@ echo
 
 if [ ! -d "$WASP_PROJECT_DIR" ]; then
   # This should not ever happen!!!
-  echo -e "\033[31m🛑 --- Directory $WASP_PROJECT_DIR does not exist! ---\033[0m"
+  echo -e "\033[31m💀 --- Directory $WASP_PROJECT_DIR does not exist! ---\033[0m"
   echo
   exit 1
 fi
@@ -38,17 +37,15 @@ echo
 cd $MAIN_PROJECT_DIR
 
 if [ ! -d "client_build" ]; then
-  mkdir -p "client_build"
-  DO_INIT=1
-  echo -e "\033[33m✅ --- Created client_build/ directory. ---\033[0m"
+  echo -e "\033[31m💀 --- Error: client_build/ directory does not exist! Please run setup script again. ---\033[0m"
   echo
+  exit 1
 fi
 
 if [ ! -d "server_build" ]; then
-  mkdir -p "server_build"
-  DO_INIT=1
-  echo -e "\033[33m✅ --- Created server_build/ directory. ---\033[0m"
+  echo -e "\033[31m💀 --- Error: server_build/ directory does not exist! Please run setup script again. ---\033[0m"
   echo
+  exit 1
 fi
 
 echo -e "\033[1;31m❗️ --- CLEANING OUT OLD BUILDS...\033[0m"
@@ -119,10 +116,10 @@ echo
 echo -e "\033[1;32m🤖 --- DEPLOYING VIA GIT and COOLIFY WEBHOOKS...\033[0m"
 echo
 
-if [ $DO_INIT -eq 1 ]; then
-  echo -e "\033[33m🤖 --- WILL INIT COMMIT DIRECTORIES...\033[0m"
-  echo
-fi
+# if [ $DO_INIT -eq 1 ]; then
+#   echo -e "\033[33m🤖 --- WILL INIT COMMIT DIRECTORIES...\033[0m"
+#   echo
+# fi
 
 TIMESTAMP=$(date +%s)
 if [ $# -gt 0 ]; then
@@ -188,7 +185,7 @@ fi
 echo
 cd $WASP_PROJECT_DIR
 
-echo -e "Your App is available at: $REACT_APP_API_URL"
+echo -e "Your App is available at: \033[1;34m$REACT_APP_API_URL\033[0m"
 echo
 
 # Get the end time and calculate the difference

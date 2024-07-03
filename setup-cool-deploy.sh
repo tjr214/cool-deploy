@@ -1,6 +1,38 @@
 #!/bin/bash
 
-rm -rf cool-deploy.sh
+# Project path variables
+WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+MAIN_PROJECT_DIR=$(dirname "$WASP_PROJECT_DIR")
+
+# Let's go!
+echo
+echo -e "\033[1;32m🤖 --- CREATING BUILD/DEPLOY DIRECTORIES FOR CLIENT & SERVER... ---\033[0m"
+echo
+
+# Get back to the main `project` directory and create the build-deploy directories
+cd $MAIN_PROJECT_DIR
+if [ ! -d "client_build" ]; then
+  mkdir -p "client_build"
+  echo -e "\033[33m✅ --- Created client_build/ directory. ---\033[0m"
+  echo
+else
+  echo -e "\033[31m💀 --- Error: client_build/ directory already exists. Please delete it and try again. ---\033[0m"
+  echo
+  exit 1
+fi
+
+if [ ! -d "server_build" ]; then
+  mkdir -p "server_build"
+  echo -e "\033[33m✅ --- Created server_build/ directory. ---\033[0m"
+  echo
+else
+  echo -e "\033[31m💀 --- Error: server_build/ directory already exists. Please delete it and try again. ---\033[0m"
+  echo
+  exit 1
+fi
+
+# Jump back to the working Wasp project directory
+cd $WASP_PROJECT_DIR
 
 echo
 echo -e "\033[1;32m🤖 --- LET'S GET COOL-DEPLOY SET UP! ---\033[0m"
@@ -106,6 +138,7 @@ echo
 echo
 
 # Download `cool-deploy.sh` script to the current directory
+rm -rf cool-deploy.sh
 if (curl -fsSL -o cool-deploy.sh https://github.com/tjr214/cool-deploy/raw/main/cool-deploy.sh); then 
   chmod +x cool-deploy.sh
   echo -e "\033[33m✅ --- Successfully downloaded \`cool-deploy.sh\` script ---\033[0m"
@@ -117,7 +150,7 @@ else
 fi
 
 # Download `template.coolify.env` file to the current directory
-if (curl -fsSL -o .coolify.env https://github.com/tjr214/cool-deploy/raw/main/template.coolify.env); then 
+if (curl -fsSL -o .env.coolify https://github.com/tjr214/cool-deploy/raw/main/template.coolify.env); then 
   echo -e "\033[33m✅ --- Successfully downloaded Coolify Environment Template file ---\033[0m"
   echo
 else
@@ -127,7 +160,7 @@ else
 fi
 
 # Replace the placeholders in `.coolify.env`
-if (sed -i "" "s|{{FRONT_URL}}|$REACT_APP_API_URL|g; s|{{BACK_URL}}|$WASP_SERVER_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{GIT_CLIENT_URL}}|$WASP_GIT_CLIENT_REPO|g; s|{{GIT_SERVER_URL}}|$WASP_GIT_SERVER_REPO|g" .coolify.env); then 
+if (sed -i "" "s|{{FRONT_URL}}|$REACT_APP_API_URL|g; s|{{BACK_URL}}|$WASP_SERVER_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{GIT_CLIENT_URL}}|$WASP_GIT_CLIENT_REPO|g; s|{{GIT_SERVER_URL}}|$WASP_GIT_SERVER_REPO|g" .env.coolify); then 
   echo -e "\033[33m✅ --- Successfully configured Coolify Environment with your chosen settings ---\033[0m"
   echo
 else
@@ -138,11 +171,11 @@ else
 fi
 
 # Let's make sure we add the Coolify Environemnt file to `.gitignore`
-if ! grep -q -z -E ".coolify\.env" .gitignore; then
+if ! grep -q -z -E ".env\.coolify" .gitignore; then
   echo "" >> .gitignore
   echo "# Ignore the Coolify environment file." >> .gitignore
   echo "# This file is just for you (or the admin) and does not belong in a Git Repo!" >> .gitignore
-  echo ".coolify.env" >> .gitignore
+  echo ".env.coolify" >> .gitignore
   echo -e "\033[33m✅ ---  Updated \`.gitignore\` to be aware of the Coolify Environment file ---\033[0m"
 else
   echo -e "\033[33m✅ --- \`.gitignore\` is alread aware of the Coolify Environment file ---\033[0m"
@@ -164,29 +197,68 @@ else
   echo -e "\033[33m✅ --- \`.env.server\` already has DATABASE_URL ---\033[0m"
 fi
 
+echo
+echo
+echo -e "\033[1;32m🤖 --- PERFORMING INITIAL COMMIT ON GIT REPOS...\033[0m"
+echo
+
+# Perform initial git commit on the client repo
+cd $MAIN_PROJECT_DIR
+cd client_build
+git init
+touch README.md && echo "# Client Build" > README.md
+git add .
+git commit -m "Cool-Deploy Setup: Init Commit [$TIMESTAMP]"
+git remote add origin $GIT_CLIENT_REPO
+git branch -M main
+if git push -u origin main; then
+  echo
+  echo -e "\033[33m✅ --- Successfully pushed Client to GitHub and linked to remote origin. ---\033[0m"
+else
+  echo
+  echo -e "\033[1;31m🛑 --- Failed to push Client to GitHub and link to remote origin! ---\033[0m"
+fi
+
+# Perform initial git commit on the server repo
+cd $MAIN_PROJECT_DIR
+cd server_build
+git init
+touch README.md && echo "# Server Build" > README.md
+git add .
+git commit -m "Cool-Deploy Setup: Init Commit [$TIMESTAMP]"
+git remote add origin $GIT_SERVER_REPO
+git branch -M main
+if git push -u origin main; then
+  echo
+  echo -e "\033[33m✅ --- Successfully pushed Server to GitHub and linked to remote origin. ---\033[0m"
+else
+  echo
+  echo -e "\033[1;31m🛑 --- Failed to push Server to GitHub and link to remote origin! ---\033[0m"
+fi
+
 # Clean up and exit
 echo
 echo
 echo -e "\033[1;32m🤖 --- CLEANING UP AND EXITING CLEANLY...\033[0m"
 echo
 
-# Delete the setup script
-rm -rf setup.sh
-
 # Print ready-to-deploy message
-echo "ALL DONE! 🎉"
-echo
 echo
 echo -e "\033[1;33mWHEN READY TO DEPLOY:\033[0m"
 echo -e "\033[33m- Uncomment the DATABASE_URL line in \`.env.server\`.\033[0m"
-echo -e "\033[33m- Make sure the env variables in \`.coolify.env\` are added to the Coolfy project.\033[0m"
+echo -e "\033[33m- Make sure the env variables in \`.env.coolify\` are added to the Coolfy project.\033[0m"
 echo -e "\033[33m- Add the following to your \`main.wasp\` file:\033[0m
 \033[35mapp\033[0m yourWaspApp \033[33m{\033[0m
   [...]
-  db\033[36m:\033[0m \033[35m{\033[0m
+  db\033[36m:\033[0m \033[31m{\033[0m
     system\033[36m:\033[0m \033[31mPostgreSQL\033[36m,\033[0m
   \033[35m}\033[36m,\033[0m
-\033[33m}\033[0m"
+\033[31m}\033[0m"
 echo -e "\033[33m- Run \`./cool-deploy.sh\` to deploy the project.\033[0m"
 echo -e "\033[33m- And Profit!\033[0m"
+echo
+
+# Delete the setup script
+rm -rf setup.sh
+echo "ALL DONE! 🎉"
 echo
