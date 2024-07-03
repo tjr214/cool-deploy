@@ -208,36 +208,35 @@ TIMESTAMP=$(date +%s)
 cd $MAIN_PROJECT_DIR
 cd client_build
 if git init; then
-  echo "Git Init Succeeded"
+  echo "- Git Init Succeeded"
 else
-  echo "Git Init Failed"
+  echo "- Git Init Failed"
 fi
 if (touch README.md && echo "# Client Build" > README.md); then
-  echo "README.md Created"
+  echo "- README.md Created"
 else
-  echo "README.md Creation Failed"
+  echo "- README.md Creation Failed"
 fi
 if git add .; then
-  echo "Git Add Succeeded"
+  echo "- Git Add Succeeded"
 else
-  echo "Git Add Failed"
+  echo "- Git Add Failed"
 fi
 if (git commit -m "Cool-Deploy Setup: Client Init Commit [$TIMESTAMP]"); then
-  echo "Git Commit Succeeded"
+  echo "- Git Commit Succeeded"
 else
-  echo "Git Commit Failed"
+  echo "- Git Commit Failed"
 fi
 if git remote add origin $WASP_GIT_CLIENT_REPO; then
-  echo "Git Remote Add Succeeded"
+  echo "- Git Remote Add Succeeded"
 else
-  echo "Git Remote Add Failed"
+  echo "- Git Remote Add Failed"
 fi
 if git branch -M main; then
-  echo "Git Branch -M Succeeded"
+  echo "- Git Branch -M Succeeded"
 else
-  echo "Git Branch -M Failed"
+  echo "- Git Branch -M Failed"
 fi
-
 
 if git push -u origin main; then
   echo
@@ -250,12 +249,35 @@ fi
 # Perform initial git commit on the server repo
 cd $MAIN_PROJECT_DIR
 cd server_build
-git init
-touch README.md && echo "# Server Build" > README.md
-git add .
-git commit -m "Cool-Deploy Setup: Server Init Commit [$TIMESTAMP]"
-git remote add origin $WASP_GIT_SERVER_REPO
-git branch -M main
+echo
+if git init; then
+  echo "- Git Init Succeeded"
+else
+  echo "- Git Init Failed"
+fi
+if (touch README.md && echo "# Server Build" > README.md); then
+  echo "- README.md Created"
+else
+  echo "- README.md Creation Failed"
+fi
+if git add .; then
+  echo "- Git Add Succeeded"
+else
+  echo "- Git Add Failed"
+fi
+if (git commit -m "Cool-Deploy Setup: Server Init Commit [$TIMESTAMP]"); then
+  echo "- Git Commit Succeeded"
+else
+  echo "- Git Commit Failed"
+fi
+if git remote add origin $WASP_GIT_SERVER_REPO; then
+  echo "- Git Remote Add Succeeded"
+else
+  echo "- Git Remote Add Failed"
+fi
+if git branch -M main; then
+  echo "- Git Branch -M Succeeded"
+
 if git push -u origin main; then
   echo
   echo -e "\033[33m✅ --- Successfully pushed Server to GitHub and linked to remote origin. ---\033[0m"
@@ -274,14 +296,16 @@ echo
 echo
 echo -e "\033[1;33mWHEN READY TO DEPLOY:\033[0m"
 echo -e "\033[33m- Uncomment the DATABASE_URL line in \`.env.server\`.\033[0m"
-echo -e "\033[33m- Make sure the env variables in \`.env.coolify\` are added to the Coolfy project.\033[0m"
-echo -e "\033[33m- Add the following to your \`main.wasp\` file:\033[0m
-\033[35mapp\033[0m yourWaspApp \033[33m{\033[0m
+echo -e "\033[33m- Make sure the env variables in \`.env.coolify\` are added to the Coolfy project's settings.\033[0m"
+echo -e "\033[33m- Add the following to your \`main.wasp\` file's \`app\` definition:\033[0m
+\`\`\`
+\033[35mapp\033[0m yourWaspApp \033[31m{\033[0m
   [...]
-  db\033[36m:\033[0m \033[31m{\033[0m
+  db\033[36m:\033[0m \033[36m{\033[0m
     system\033[36m:\033[0m \033[31mPostgreSQL\033[36m,\033[0m
   \033[35m}\033[36m,\033[0m
-\033[31m}\033[0m"
+\033[31m}\033[0m
+\`\`\`"
 echo -e "\033[33m- Run \`./cool-deploy.sh\` to deploy the project.\033[0m"
 echo -e "\033[33m- And Profit!\033[0m"
 echo
