@@ -207,12 +207,38 @@ TIMESTAMP=$(date +%s)
 # Perform initial git commit on the client repo
 cd $MAIN_PROJECT_DIR
 cd client_build
-git init
-touch README.md && echo "# Client Build" > README.md
-git add .
-git commit -m "Cool-Deploy Setup: Client Init Commit [$TIMESTAMP]"
-git remote add origin $WASP_GIT_CLIENT_REPO
-git branch -M main
+if git init; then
+  echo "Git Init Succeeded"
+else
+  echo "Git Init Failed"
+fi
+if (touch README.md && echo "# Client Build" > README.md); then
+  echo "README.md Created"
+else
+  echo "README.md Creation Failed"
+fi
+if git add .; then
+  echo "Git Add Succeeded"
+else
+  echo "Git Add Failed"
+fi
+if (git commit -m "Cool-Deploy Setup: Client Init Commit [$TIMESTAMP]"); then
+  echo "Git Commit Succeeded"
+else
+  echo "Git Commit Failed"
+fi
+if git remote add origin $WASP_GIT_CLIENT_REPO; then
+  echo "Git Remote Add Succeeded"
+else
+  echo "Git Remote Add Failed"
+fi
+if git branch -M main; then
+  echo "Git Branch -M Succeeded"
+else
+  echo "Git Branch -M Failed"
+fi
+
+
 if git push -u origin main; then
   echo
   echo -e "\033[33m✅ --- Successfully pushed Client to GitHub and linked to remote origin. ---\033[0m"
