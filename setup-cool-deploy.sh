@@ -277,6 +277,9 @@ else
 fi
 if git branch -M main; then
   echo "- Git Branch -M Succeeded"
+else
+  echo "- Git Branch -M Failed"
+fi
 
 if git push -u origin main; then
   echo
@@ -310,9 +313,9 @@ echo -e "\033[33m- Run \`./cool-deploy.sh\` to deploy the project.\033[0m"
 echo -e "\033[33m- And Profit!\033[0m"
 echo
 
+echo "ALL DONE! 🎉"
+echo
+
 # Delete the setup script
 cd $WASP_PROJECT_DIR
 rm -rf setup.sh
-
-echo "ALL DONE! 🎉"
-echo
