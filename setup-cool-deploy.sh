@@ -190,9 +190,9 @@ if [ ! -e .env.server ]; then
 fi
 
 if ! grep -q -z -E "DATABASE_URL" .env.server; then
-  echo "# Database URL (uncomment when ready to deploy to Coolify)" >> .env.server
-  echo "# DATABASE_URL=$WASP_DATABASE_URL" >> .env.server
-  echo -e "\033[33m✅ --- Added DATABASE_URL to \`.env.server\` ---\033[0m"
+  echo "# Database URL for DEVELOPMENT ONLY (Production dB URL is set in Env Vars in Coolify)" >> .env.server
+  echo "DATABASE_URL=" >> .env.server
+  echo -e "\033[33m✅ --- Added DATABASE_URL to \`.env.server\` for Local Development---\033[0m"
 else
   echo -e "\033[33m✅ --- \`.env.server\` already has DATABASE_URL ---\033[0m"
 fi
@@ -298,9 +298,8 @@ echo
 # Print ready-to-deploy message
 echo
 echo -e "\033[1;33mWHEN READY TO DEPLOY:\033[0m"
-echo -e "\033[33m- Uncomment the DATABASE_URL line in \`.env.server\`.\033[0m"
-echo -e "\033[33m- Make sure the env variables in \`.env.coolify\` are added to the Coolfy project's settings.\033[0m"
-echo -e "\033[33m- Add the following to your \`main.wasp\` file's \`app\` definition:\033[0m
+echo -e "\033[33m- First, make sure the env variables in \033[36m\`\033[0m\033[35m.env.coolify\033[36m\`\033[0m \033[33mare added to the Coolfy project's "Environment Variables".\033[0m"
+echo -e "\033[33m- Also: If you have not already done so, add the following to your \033[36m\`\033[0m\033[35mmain.wasp\033[36m\`\033[0m \033[33mfile's \`app\` definition:\033[0m
 \`\`\`
 \033[35mapp\033[0m yourWaspApp \033[31m{\033[0m
   [...]
@@ -309,8 +308,14 @@ echo -e "\033[33m- Add the following to your \`main.wasp\` file's \`app\` defini
   \033[35m}\033[36m,\033[0m
 \033[31m}\033[0m
 \`\`\`"
-echo -e "\033[33m- Run \`./cool-deploy.sh\` to deploy the project.\033[0m"
-echo -e "\033[33m- And Profit!\033[0m"
+echo -e "\033[33m- Then, delete your \`migrations\` directory (e.g., \033[36m\`\033[0m\033[35mrm -rf migrations\033[36m\`\033[0m\033[33m).\033[0m"
+echo -e "\033[33m- Next, migrate the dB with \033[36m\`\033[0m\033[35mwasp db migrate-dev\033[36m\`\033[0m\033[33m.\033[0m"
+echo -e "\033[33m- Now, run \033[36m\`\033[0m\033[35m./cool-deploy.sh\033[36m\`\033[0m \033[33mto deploy the project.\033[0m"
+echo -e "\033[33m- And Profit :)\033[0m"
+echo
+
+echo
+echo -e "\033[33mFinally, when you need to re-deploy, just run \033[36m\`\033[0m\033[35m./cool-deploy.sh\033[36m\`\033[0m \033[33magain. That's it! \033[0m"
 echo
 
 echo "ALL DONE! 🎉"
