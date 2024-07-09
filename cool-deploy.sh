@@ -69,6 +69,7 @@ rm -rf client_build/assets
 rm -rf client_build/.gitkeep
 rm -rf client_build/favicon.ico
 rm -rf client_build/index.html
+rm -rf client_build/*.html
 rm -rf client_build/manifest.json
 echo -e "\033[33m✅ --- Sanitized client_build/ directory. ---\033[0m"
 echo
@@ -90,7 +91,7 @@ if ! wasp build; then
 fi
 
 echo
-echo -e "\033[1;32m🤖 --- BUILDING CLIENT w/ REACT_APP_API_URL @ \033[1;31m$REACT_APP_API_URL...\033[0m"
+echo -e "\033[1;32m🤖 --- BUILDING & BUNDLING CLIENT (REACT_APP_API_URL: \033[1;31m$REACT_APP_API_URL\033[1;32)\033[0m"
 cd $WASP_PROJECT_DIR
 cd .wasp/build/web-app
 if ! (npm install && REACT_APP_API_URL=$REACT_APP_API_URL npm run build); then
@@ -100,13 +101,13 @@ if ! (npm install && REACT_APP_API_URL=$REACT_APP_API_URL npm run build); then
 fi
 
 echo
-echo -e "\033[1;32m🤖 --- COPYING INTO DIST FOLDERS...\033[0m"
+echo -e "\033[1;32m🤖 --- SHIPPING INTO DIST FOLDERS...\033[0m"
 echo
 cd $WASP_PROJECT_DIR
-cp -Rf .wasp/build/web-app/build/ ../client_build
+mv -Rf .wasp/build/web-app/build/ ../client_build
 echo -e "\033[33m✅ --- Copied static site files into client_build/ directory. ---\033[0m"
 echo
-cp -Rf .wasp/build/ ../server_build
+mv -Rf .wasp/build/ ../server_build
 rm -rf ../server_build/web-app/
 echo -e "\033[33m✅ --- Copied server code & sdk and Dockerfile into server_build/ directory. ---\033[0m"
 echo
