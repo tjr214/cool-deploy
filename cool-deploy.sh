@@ -7,8 +7,9 @@ source .env.coolify
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 MAIN_PROJECT_DIR=$(dirname "$WASP_PROJECT_DIR")
 
-# Set some variables for internal use
-REACT_APP_API_URL=$WASP_WEB_CLIENT_URL
+# Tell the client frontend where to find the server backend
+# REACT_APP_API_URL=$WASP_WEB_CLIENT_URL
+REACT_APP_API_URL=$WASP_SERVER_URL
 
 # Get the start time
 start_time=$(date +%s)
@@ -30,7 +31,8 @@ echo
 
 echo -e "\033[1;33mMain Project Dir:\033[0m $MAIN_PROJECT_DIR"
 echo -e "\033[1;33mWasp Project Dir:\033[0m $WASP_PROJECT_DIR"
-echo -e "\033[1;33mClient URL Location:\033[0m $REACT_APP_API_URL"
+echo -e "\033[1;33mClient Location:\033[0m $WASP_WEB_CLIENT_URL"
+echo -e "\033[1;33mServer Location:\033[0m $REACT_APP_API_URL"
 echo
 
 # Get back to the `project` directory that contains the wasp dir and the git deploy dirs
@@ -88,7 +90,7 @@ if ! wasp build; then
 fi
 
 echo
-echo -e "\033[1;32m🤖 --- BUILDING CLIENT to be hosted @ \033[1;31m$REACT_APP_API_URL...\033[0m"
+echo -e "\033[1;32m🤖 --- BUILDING CLIENT w/ REACT_APP_API_URL @ \033[1;31m$REACT_APP_API_URL...\033[0m"
 cd $WASP_PROJECT_DIR
 cd .wasp/build/web-app
 if ! (npm install && REACT_APP_API_URL=$REACT_APP_API_URL npm run build); then
@@ -116,11 +118,6 @@ echo
 echo -e "\033[1;32m🤖 --- DEPLOYING VIA GIT and COOLIFY WEBHOOKS...\033[0m"
 echo
 
-# if [ $DO_INIT -eq 1 ]; then
-#   echo -e "\033[33m🤖 --- WILL INIT COMMIT DIRECTORIES...\033[0m"
-#   echo
-# fi
-
 TIMESTAMP=$(date +%s)
 if [ $# -gt 0 ]; then
     COMMIT_MSG="$1 [$TIMESTAMP]"
@@ -130,20 +127,6 @@ fi
 
 cd $MAIN_PROJECT_DIR
 cd client_build
-# if [ $DO_INIT -eq 1 ]; then
-#   git init
-#   git add .
-#   git commit -m "Auto-Deploy: Init Commit [$TIMESTAMP]"
-#   git remote add origin $GIT_CLIENT_REPO
-#   git branch -M main
-#   if git push -u origin main; then
-#     echo
-#     echo -e "\033[33m✅ --- Successfully pushed Client to GitHub and linked to remote origin. ---\033[0m"
-#   else
-#     echo
-#     echo -e "\033[1;31m🛑 --- Failed to push Client to GitHub and link to remote origin! ---\033[0m"
-#   fi
-# else
 git add .
 git commit -m "Auto-Deploy: $COMMIT_MSG"
 if git push; then
@@ -153,25 +136,10 @@ else
   echo
   echo -e "\033[1;31m🛑 --- Failed to push Client to GitHub! ---\033[0m"
 fi
-# fi
 echo
 
 cd $MAIN_PROJECT_DIR
 cd server_build
-# if [ $DO_INIT -eq 1 ]; then
-#   git init
-#   git add .
-#   git commit -m "Auto-Deploy: Init Commit [$TIMESTAMP]"
-#   git remote add origin $GIT_SERVER_REPO
-#   git branch -M main
-#   if git push -u origin main; then
-#     echo
-#     echo -e "\033[33m✅ --- Successfully pushed Server to GitHub and linked to remote origin. ---\033[0m"
-#   else
-#     echo
-#     echo -e "\033[1;31m🛑 --- Failed to push Server to GitHub and link to remote origin! ---\033[0m"
-#   fi
-# else
 git add .
 git commit -m "Auto-Deploy: $COMMIT_MSG"
 if git push; then
@@ -181,11 +149,10 @@ else
   echo
   echo -e "\033[1;31m🛑 --- Failed to push Server to GitHub! ---\033[0m"
 fi
-# fi
 echo
 cd $WASP_PROJECT_DIR
 
-echo -e "Your App is available at: \033[1;34m$REACT_APP_API_URL\033[0m"
+echo -e "Your App is available at: \033[1;34m$WASP_WEB_CLIENT_URL\033[0m"
 echo
 
 # Get the end time and calculate the difference
