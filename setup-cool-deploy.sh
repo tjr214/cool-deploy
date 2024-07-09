@@ -59,7 +59,7 @@ while [ $SETTINGS_CONFIRM -eq 0 ]; do
     fi
   done
 
-  read -p $'\033[33mWhat port should the server run on? (default 3001):\033[0m ' WASP_SERVER_PORT
+  read -p $'\033[33mWhat port should the server run on? (default 3000):\033[0m ' WASP_SERVER_PORT
   read -p $'\033[33mDatabase URL (or, hit enter to leave blank for now):\033[0m ' WASP_DATABASE_URL
   read -p $'\033[33mJWT Secret Key (or, hit enter to generate):\033[0m ' WASP_JWT_SECRET
   
@@ -82,8 +82,8 @@ while [ $SETTINGS_CONFIRM -eq 0 ]; do
   done
 
   # Finalize the variables' content
-  REACT_APP_API_URL=$WASP_WEB_CLIENT_URL
-  WASP_SERVER_PORT=${WASP_SERVER_PORT:-3001}
+  REACT_APP_API_URL=$WASP_SERVER_URL
+  WASP_SERVER_PORT=${WASP_SERVER_PORT:-3000}
   WASP_JWT_SECRET=${WASP_JWT_SECRET:-$(openssl rand -hex 32)}
   WASP_DATABASE_URL=${WASP_DATABASE_URL:-postgres://wasp:wasp@localhost:5432/wasp}
 
@@ -91,8 +91,8 @@ while [ $SETTINGS_CONFIRM -eq 0 ]; do
   echo
   echo -e "\033[1;36m🤖 --- SETTINGS AND ENVIRONMENT CONFIGURATION ---\033[0m"
   echo
-  echo -e "\033[1;34mWASP_WEB_CLIENT_URL\033[0m=$REACT_APP_API_URL"
-  echo -e "\033[1;34mWASP_SERVER_URL\033[0m=$WASP_SERVER_URL"
+  echo -e "\033[1;34mWASP_WEB_CLIENT_URL\033[0m=$WASP_WEB_CLIENT_URL"
+  echo -e "\033[1;34mWASP_SERVER_URL\033[0m=$REACT_APP_API_URL"
   echo -e "\033[1;34mWASP_SERVER_PORT\033[0m=$WASP_SERVER_PORT"
   echo -e "\033[1;34mDATABASE_URL\033[0m=$WASP_DATABASE_URL"
   echo -e "\033[1;34mJWT_SECRET\033[0m=$WASP_JWT_SECRET"
@@ -160,7 +160,7 @@ else
 fi
 
 # Replace the placeholders in `.coolify.env`
-if (sed -i "" "s|{{FRONT_URL}}|$REACT_APP_API_URL|g; s|{{BACK_URL}}|$WASP_SERVER_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{GIT_CLIENT_URL}}|$WASP_GIT_CLIENT_REPO|g; s|{{GIT_SERVER_URL}}|$WASP_GIT_SERVER_REPO|g" .env.coolify); then 
+if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{GIT_CLIENT_URL}}|$WASP_GIT_CLIENT_REPO|g; s|{{GIT_SERVER_URL}}|$WASP_GIT_SERVER_REPO|g" .env.coolify); then 
   echo -e "\033[33m✅ --- Successfully configured Coolify Environment with your chosen settings ---\033[0m"
   echo
 else
@@ -170,7 +170,7 @@ else
   exit 1
 fi
 
-# Let's make sure we add the Coolify Environemnt file to `.gitignore`
+# Let's make sure we add the Coolify Environment file to `.gitignore`
 if ! grep -q -z -E ".env\.coolify" .gitignore; then
   echo "" >> .gitignore
   echo "# Ignore the Coolify environment file." >> .gitignore
