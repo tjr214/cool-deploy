@@ -7,6 +7,10 @@ source .env.coolify
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 MAIN_PROJECT_DIR=$(dirname "$WASP_PROJECT_DIR")
 
+# Deplot directories
+CLIENT_DEPLOY_DIR=$WASP_PROJECT_DIR/deploy/cool_client
+SERVER_DEPLOY_DIR=$WASP_PROJECT_DIR/deploy/cool_server
+
 # Tell the client frontend where to find the server backend
 REACT_APP_API_URL=$WASP_SERVER_URL
 
