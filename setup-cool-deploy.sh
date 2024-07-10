@@ -307,8 +307,7 @@ echo
 # Print ready-to-deploy message
 echo
 echo -e "\033[1;33mWHEN READY TO DEPLOY:\033[0m"
-echo -e "\033[33m- First, make sure the env variables in \033[36m\`\033[0m\033[35m.env.coolify\033[36m\`\033[0m \033[33mare added to the Coolfy project's "Environment Variables".\033[0m"
-echo -e "\033[33m- Also: If you have not already done so, add the following to your \033[36m\`\033[0m\033[35mmain.wasp\033[36m\`\033[0m \033[33mfile's \`app\` definition:\033[0m
+echo -e "\033[33m- Before We Begin: if you have not already done so, add the following to your \033[36m\`\033[0m\033[35mmain.wasp\033[36m\`\033[0m \033[33mfile's \`app\` definition:\033[0m
 \`\`\`
 \033[35mapp\033[0m yourWaspApp \033[31m{\033[0m
   [...]
@@ -317,14 +316,16 @@ echo -e "\033[33m- Also: If you have not already done so, add the following to y
   \033[35m}\033[36m,\033[0m
 \033[31m}\033[0m
 \`\`\`"
+echo -e "\033[33m- After that, make sure the Development dB env variable is set in \`.env.server\`.\033[0m"
 echo -e "\033[33m- Then, delete your \`migrations\` directory (e.g., \033[36m\`\033[0m\033[35mrm -rf migrations\033[36m\`\033[0m\033[33m).\033[0m"
 echo -e "\033[33m- Next, migrate the dB with \033[36m\`\033[0m\033[35mwasp db migrate-dev\033[36m\`\033[0m\033[33m.\033[0m"
-echo -e "\033[33m- Now, run \033[36m\`\033[0m\033[35m./cool-deploy.sh\033[36m\`\033[0m \033[33mto deploy the project.\033[0m"
+echo -e "\033[33m- Now, run \033[36m\`\033[0m\033[35m./cool-deploy.sh\033[36m\`\033[0m \033[33mto make initial deployment into your Github repos.\033[0m"
+echo -e "\033[33m- Finally, make sure the env variables in \033[36m\`\033[0m\033[35m.env.coolify\033[36m\`\033[0m \033[33mare added to the Coolify project's "Environment Variables" tab, and then Deploy the containers.\033[0m"
 echo -e "\033[33m- And Profit :)\033[0m"
 echo
 
 echo
-echo -e "\033[33mFinally, when you need to re-deploy, just run \033[36m\`\033[0m\033[35m./cool-deploy.sh\033[36m\`\033[0m \033[33magain. That's it! \033[0m"
+echo -e "\033[33mWhen you need to re-deploy, simply run \033[36m\`\033[0m\033[35m./cool-deploy.sh\033[36m\`\033[0m \033[33magain. That's it! Coolify will pickup the Webook from Github and auto-deploy the new version of your App.\033[0m"
 echo
 
 echo "ALL DONE! 🎉"
