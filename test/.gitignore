@@ -1,4 +1,0 @@
-
-# Ignore the Coolify environment file.
-# This file is just for you (or the admin) and does not belong in a Git Repo!
-.env.coolify
