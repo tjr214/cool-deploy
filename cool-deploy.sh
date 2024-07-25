@@ -4,6 +4,7 @@
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PARENT_DIR=$(dirname "$WASP_PROJECT_DIR")
 FIRST_TIME_RUN=0
+JWT_SECRET=0
 
 # Deploy directories
 DEPLOY_DIR=$WASP_PROJECT_DIR/deploy
@@ -15,6 +16,12 @@ if [ $# -gt 0 ]; then
     COMMIT_MSG="$1"
 else
     COMMIT_MSG="Auto-Deploy Commit"
+fi
+
+cd $WASP_PROJECT_DIR
+if grep -q -z -E "JWT_SECRET=" .env.server; then
+  WASP_JWT_SECRET=$(grep -E "JWT_SECRET=" .env.server | cut -d '=' -f 2-)
+  JWT_SECRET=1
 fi
 
 # ------------------------------------------------------------------------------
@@ -110,7 +117,12 @@ else # Configure our `cool-deploy`` script!
 
     read -p $'\033[33mWhat port should the server run on? (default 3000):\033[0m ' WASP_SERVER_PORT
     read -p $'\033[33mDatabase URL (or, hit enter to leave blank for now):\033[0m ' WASP_DATABASE_URL
-    read -p $'\033[33mJWT Secret Key (or, hit enter to generate):\033[0m ' WASP_JWT_SECRET
+    
+    if [ $JWT_SECRET -eq 0 ]; then
+      read -p $'\033[33mJWT Secret Key (or, hit enter to generate):\033[0m ' WASP_JWT_SECRET
+    else
+      echo -e "\033[33m🤙 --- Using JWT Secret already defined in \`.env.server\`. ---\033[0m"
+    fi
     
     # Finalize the variables' content
     REACT_APP_API_URL=$WASP_SERVER_URL
@@ -176,7 +188,7 @@ PORT={{BACK_PORT}}
 # Database URL
 DATABASE_URL={{DATABASE_URL}}
 
-# JWT Secret for Wasp's Auth System (not sure if still needed?)
+# JWT Secret for Wasp's Auth System (must match the one in .env.server)
 JWT_SECRET={{AUTH_SECRET}}" > .env.coolify); then
     echo -e "\033[33m✅ --- Successfully created Coolify Environment Template file ---\033[0m"
     echo
@@ -186,17 +198,6 @@ JWT_SECRET={{AUTH_SECRET}}" > .env.coolify); then
     echo
     exit 1
   fi
-
-  # # Download `template.coolify.env` file to the current directory
-  # if (curl -fsSL -o .env.coolify https://github.com/tjr214/cool-deploy/raw/main/template.coolify.env); then 
-  #   echo -e "\033[33m✅ --- Successfully downloaded Coolify Environment Template file ---\033[0m"
-  #   echo
-  # else
-  #   echo
-  #   echo -e "\033[31m🛑 --- Failed to download \`template.coolify.env\`! See above for errors... ---\033[0m"
-  #   echo
-  #   exit 1
-  # fi
 
   # Replace the Env placeholders in `.coolify.env`
   if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g" .env.coolify); then
@@ -215,7 +216,7 @@ JWT_SECRET={{AUTH_SECRET}}" > .env.coolify); then
     echo "# Ignore the Coolify environment file." >> .gitignore
     echo "# This file is just for you (or the admin) and does not belong in a Git Repo!" >> .gitignore
     echo ".env.coolify" >> .gitignore
-    echo -e "\033[33m✅ ---  Updated \`.gitignore\` to be aware of the Coolify Environment file ---\033[0m"
+    echo -e "\033[33m✅ --- Updated \`.gitignore\` to be aware of the Coolify Environment file ---\033[0m"
   else
     echo -e "\033[33m✅ --- \`.gitignore\` is alread aware of the Coolify Environment file ---\033[0m"
   fi
@@ -230,10 +231,19 @@ JWT_SECRET={{AUTH_SECRET}}" > .env.coolify); then
 
   if ! grep -q -z -E "DATABASE_URL" .env.server; then
     echo "# Database URL for DEVELOPMENT ONLY (Production dB URL is set in Env Vars in Coolify)" >> .env.server
-    echo "DATABASE_URL=" >> .env.server
+    echo "# DATABASE_URL=" >> .env.server
     echo -e "\033[33m✅ --- Added space for 'DATABASE_URL' to \`.env.server\` for Local Development ---\033[0m"
   else
     echo -e "\033[33m✅ --- \`.env.server\` already has a 'DATABASE_URL' entry for Local Development ---\033[0m"
+  fi
+
+  echo
+  if ! grep -q -z -E "JWT_SECRET" .env.server; then
+    echo "# JWT Secret for Wasp's Auth System (must match the one in .env.coolify)" >> .env.server
+    echo "JWT_SECRET=$WASP_JWT_SECRET" >> .env.server
+    echo -e "\033[33m✅ --- Added 'JWT_SECRET' to \`.env.server\` for Local Development ---\033[0m"
+  else
+    echo -e "\033[33m✅ --- \`.env.server\` already has a 'JWT_SECRET' set up ---\033[0m"
   fi
 
   echo
