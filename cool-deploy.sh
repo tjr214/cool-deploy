@@ -4,21 +4,22 @@
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PARENT_DIR=$(dirname "$WASP_PROJECT_DIR")
 FIRST_TIME_RUN=0
-JWT_SECRET=0
+# JWT_SECRET=0
 
 # Deploy directories
 DEPLOY_DIR=$WASP_PROJECT_DIR/deploy
 CLIENT_DEPLOY_DIR=$DEPLOY_DIR/client
 SERVER_DEPLOY_DIR=$DEPLOY_DIR/server
 
+# Get the app name and version of the Wasp App
 cd $WASP_PROJECT_DIR
 WASP_APP_NAME=$(grep -o 'app \w\+' main.wasp | cut -d' ' -f2)
 WASP_VERSION=$(awk '/wasp: {/,/}/ {if ($1 == "version:") {gsub(/[",]/, "", $2); sub(/^\^/, "", $2); print $2; exit}}' main.wasp)
 
-if grep -q -z -E "JWT_SECRET=" .env.server; then
-  WASP_JWT_SECRET=$(grep -E "JWT_SECRET=" .env.server | cut -d '=' -f 2-)
-  JWT_SECRET=1
-fi
+# if grep -q -z -E "JWT_SECRET=" .env.server; then
+#   WASP_JWT_SECRET=$(grep -E "JWT_SECRET=" .env.server | cut -d '=' -f 2-)
+#   JWT_SECRET=1
+# fi
 
 # ------------------------------------------------------------------------------
 # SETUP FILESYSTEM & CONFIGURE DEPLOYMENT VARIABLES
@@ -113,12 +114,13 @@ else # Configure our `cool-deploy`` script!
 
     read -p $'\033[33mWhat port should the server run on? (default 3000):\033[0m ' WASP_SERVER_PORT
     read -p $'\033[33mDatabase URL (or, hit enter to leave blank for now):\033[0m ' WASP_DATABASE_URL
-    
-    if [ $JWT_SECRET -eq 0 ]; then
-      read -p $'\033[33mJWT Secret Key (or, hit enter to generate):\033[0m ' WASP_JWT_SECRET
-    else
-      echo -e "\033[33m🤙 --- Using JWT Secret already defined in \`.env.server\`. ---\033[0m"
-    fi
+    read -p $'\033[33mJWT Secret Key (or, hit enter to generate):\033[0m ' WASP_JWT_SECRET
+
+    # if [ $JWT_SECRET -eq 0 ]; then
+    #   read -p $'\033[33mJWT Secret Key (or, hit enter to generate):\033[0m ' WASP_JWT_SECRET
+    # else
+    #   echo -e "\033[33m🤙 --- Using JWT Secret already defined in \`.env.server\`. ---\033[0m"
+    # fi
     
     # Finalize the variables' content
     REACT_APP_API_URL=$WASP_SERVER_URL
@@ -184,7 +186,7 @@ PORT={{BACK_PORT}}
 # Database URL
 DATABASE_URL={{DATABASE_URL}}
 
-# JWT Secret for Wasp's Auth System (must match the one in .env.server)
+# JWT Secret for Wasp's Auth System
 JWT_SECRET={{AUTH_SECRET}}" > .env.coolify); then
     echo -e "\033[33m✅ --- Successfully created Coolify Environment Template file ---\033[0m"
     echo
@@ -235,8 +237,9 @@ JWT_SECRET={{AUTH_SECRET}}" > .env.coolify); then
 
   echo
   if ! grep -q -z -E "JWT_SECRET" .env.server; then
-    echo "# JWT Secret for Wasp's Auth System (must match the one in .env.coolify)" >> .env.server
-    echo "JWT_SECRET=$WASP_JWT_SECRET" >> .env.server
+    LOCAL_JWT_SECRET=$(openssl rand -hex 32)
+    echo "# JWT Secret for Wasp's Auth System (used for local dev only)" >> .env.server
+    echo "JWT_SECRET=$LOCAL_JWT_SECRET" >> .env.server
     echo -e "\033[33m✅ --- Added 'JWT_SECRET' to \`.env.server\` for Local Development ---\033[0m"
   else
     echo -e "\033[33m✅ --- \`.env.server\` already has a 'JWT_SECRET' set up ---\033[0m"
@@ -272,6 +275,15 @@ if [ $FIRST_TIME_RUN -eq 1 ]; then # First time? Should we deploy?
     fi
   done
   echo
+  if [ -e ".env.coolify" ]; then
+    # Load our Coolify config variables
+    echo -e "\033[1;32m🤖 --- LOADING ENVIRONMENT VARIABLES FROM .env.coolify ---\033[0m"
+    source .env.coolify
+  else # throw error
+    echo -e "\033[1;31m🛑 --- Error: Coolify Environment file not found! THIS SHOULD NOT HAPPEN! ---\033[0m"
+    echo
+    exit 1
+  fi
 fi # End check for first time run
 
 # ------------------------------------------------------------------------------
@@ -313,7 +325,11 @@ if [ $# -gt 0 ]; then
     COMMIT_MSG="$1"
     echo -e "\033[1;33mGit Commit Message:\033[0m $COMMIT_MSG"
 else
-    COMMIT_MSG="Auto-Deploy Commit"
+    COMMIT_MSG="Deployment from command line.
+
+
+No commit message provided.
+"
 fi
 
 while true; do
@@ -429,12 +445,17 @@ echo
 echo -e "\033[1;32m🤖 --- DEPLOYING VIA GIT and COOLIFY WEBHOOKS...\033[0m"
 echo
 
-TIMESTAMP=$(date +%s)
-COMMIT_MSG="$COMMIT_MSG [$TIMESTAMP]"
+TIMESTAMP_UNIX=$(date +%s)
+TIMESTAMP_HUMAN=$(date "+%I:%M:%S %p on %m/%d/%Y")
+COMMIT_MSG="Cool-Deploy: $COMMIT_MSG
+
+Code pushed to repository at: $TIMESTAMP_HUMAN.
+UNIX Epoc: [$TIMESTAMP_UNIX]
+"
 
 cd $WASP_PROJECT_DIR
 git add .
-git commit -m "Auto-Deploy: $COMMIT_MSG"
+git commit -m "$COMMIT_MSG"
 if git push; then
   echo
   echo -e "\033[33m✅ --- Successfully pushed Everything(tm) to GitHub. ---\033[0m"
