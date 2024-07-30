@@ -11,14 +11,10 @@ DEPLOY_DIR=$WASP_PROJECT_DIR/deploy
 CLIENT_DEPLOY_DIR=$DEPLOY_DIR/client
 SERVER_DEPLOY_DIR=$DEPLOY_DIR/server
 
-# Get the commit message (if there is one)
-if [ $# -gt 0 ]; then
-    COMMIT_MSG="$1"
-else
-    COMMIT_MSG="Auto-Deploy Commit"
-fi
-
 cd $WASP_PROJECT_DIR
+WASP_APP_NAME=$(grep -o 'app \w\+' main.wasp | cut -d' ' -f2)
+WASP_VERSION=$(awk '/wasp: {/,/}/ {if ($1 == "version:") {gsub(/[",]/, "", $2); sub(/^\^/, "", $2); print $2; exit}}' main.wasp)
+
 if grep -q -z -E "JWT_SECRET=" .env.server; then
   WASP_JWT_SECRET=$(grep -E "JWT_SECRET=" .env.server | cut -d '=' -f 2-)
   JWT_SECRET=1
@@ -128,7 +124,7 @@ else # Configure our `cool-deploy`` script!
     REACT_APP_API_URL=$WASP_SERVER_URL
     WASP_SERVER_PORT=${WASP_SERVER_PORT:-3000}
     WASP_JWT_SECRET=${WASP_JWT_SECRET:-$(openssl rand -hex 32)}
-    WASP_DATABASE_URL=${WASP_DATABASE_URL:-postgres://wasp:wasp@localhost:5432/wasp}
+    WASP_DATABASE_URL=${WASP_DATABASE_URL:-postgres://}
 
     # Print variables and confirm selections
     echo
@@ -285,10 +281,7 @@ fi # End check for first time run
 # Tell the client frontend where to find the server backend
 REACT_APP_API_URL=$WASP_SERVER_URL
 
-# Get the start time
-start_time=$(date +%s)
-
-# Begin!
+# Begin pre-deployment...
 echo
 echo -e "\033[1;32m🤖 --- BEGINNING PRE-DEPLOYMENT PROCESS...\033[0m"
 echo
@@ -305,15 +298,27 @@ cd $WASP_PROJECT_DIR
 echo -e "\033[1;36m🤖 --- PROJECT & DEPLOYMENT INFO...\033[0m"
 echo
 
-echo -e "\033[1;33mWasp Project Dir:\033[0m $WASP_PROJECT_DIR"
-echo -e "\033[1;33mClient Directory:\033[0m $CLIENT_DEPLOY_DIR"
-echo -e "\033[1;33mServer Directory:\033[0m $SERVER_DEPLOY_DIR"
-echo -e "\033[1;33mClient URL:\033[0m $WASP_WEB_CLIENT_URL"
-echo -e "\033[1;33mServer URL:\033[0m $REACT_APP_API_URL"
+echo -e "\033[1;43m• WASP PROJECT \033[3;43m$WASP_APP_NAME \033[0m"
+echo -e "\033[1;33m - Running on Wasp:\033[0m \033[31m$WASP_VERSION\033[0m"
+echo -e "\033[1;33m - Project Directory:\033[0m $WASP_PROJECT_DIR"
+echo -e "\033[1;33m - Client Directory:\033[0m $CLIENT_DEPLOY_DIR"
+echo -e "\033[1;33m - Server Directory:\033[0m $SERVER_DEPLOY_DIR"
+echo -e "\033[1;33m - Client URL:\033[0m \033[34m$WASP_WEB_CLIENT_URL\033[0m"
+echo -e "\033[1;33m - Server URL:\033[0m \033[34m$REACT_APP_API_URL\033[0m"
+echo -e "\033[1;33m - JWT Secret:\033[0m \033[35m$JWT_SECRET\033[0m"
+echo
+
+# Get the commit message (if there is one)
+if [ $# -gt 0 ]; then
+    COMMIT_MSG="$1"
+    echo -e "\033[1;33mGit Commit Message:\033[0m $COMMIT_MSG"
+else
+    COMMIT_MSG="Auto-Deploy Commit"
+fi
 
 while true; do
   echo
-  read -p $'\033[31mCONFIRM:\033[33m Deploy now? [Y/n]:\033[0m ' DEPLOY_NOW_CONTINUE
+  read -p $'\033[1;31mCONFIRM:\033[0m \033[33mProceed with Deployment? [Y/n]:\033[0m ' DEPLOY_NOW_CONTINUE
   if [ "$DEPLOY_NOW_CONTINUE" == "y" ]; then
     break
   elif [ "$DEPLOY_NOW_CONTINUE" == "Y" ]; then
@@ -335,6 +340,10 @@ while true; do
   fi
 done
 
+# Get the start time
+start_time=$(date +%s)
+
+# Begin Deployment Process!
 cd $WASP_PROJECT_DIR
 echo
 
