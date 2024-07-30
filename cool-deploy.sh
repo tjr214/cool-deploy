@@ -480,7 +480,7 @@ if [ $elapsed_time -gt 59 ]; then
     if [ $minutes -gt 1 ]; then
       MINUTE_SUFIX="minutes"
     fi
-    echo -e "\033[1;33m🤖 --- DEPLOYMENT COMPLETED IN: $minutes $MINUTE_SUFIX and $seconds seconds!\033[0m"
+    echo -e "\033[1;33m🎉 --- DEPLOYMENT COMPLETED IN: $minutes $MINUTE_SUFIX and $seconds seconds!\033[0m"
 else
-    echo -e "\033[1;33m🤖 --- DEPLOYMENT COMPLETED IN: $elapsed_time seconds!\033[0m"
+    echo -e "\033[1;33m🎉 --- DEPLOYMENT COMPLETED IN: $elapsed_time seconds!\033[0m"
 fi
