@@ -141,6 +141,48 @@ new_coolify_project() {
   echo "$project_uuid"
 }
 
+# ------------------------------------------------------------------------------
+# GET_COOLIFY_GITHUB_KEY
+# Optional: $1 = if already retrieved UUID, check to make sure it is valid.
+# ------------------------------------------------------------------------------
+get_coolify_github_key() {
+  if [ ! -z "$1" ]; then
+    valid_key=0
+  fi
+  local keys=$(curl -s --request GET \
+    --url $COOLIFY_BASE_URL/api/v1/security/keys \
+    --header "$BEARER")
+  local key_found=0
+  local key_count=$(jq '. | length' <<< "$keys")
+  for ((i = 0; i < key_count; i++)); do # Loop through all keys
+    local key_is_git_related=$(jq -r ".[$i].is_git_related" <<< "$keys")
+    if [ "$key_is_git_related" == "true" ]; then
+      local key_uuid=$(jq -r ".[$i].uuid" <<< "$keys")
+      if [ -z "$1" ]; then # $1 is empty, just print the data
+        ((key_found++))
+        local key_id=$(jq -r ".[$i].id" <<< "$keys")
+        local key_name=$(jq -r ".[$i].name" <<< "$keys")
+        local key_description=$(jq -r ".[$i].description" <<< "$keys")
+        echo -e "\033[33mGithub App Key-$key_found:\033[0m \033[1;31m$key_name\033[0m"
+        echo -e "  Description: $key_description"
+        echo -e "  UUID: \033[1;37m$key_uuid\033[0m"
+      else # Check if the UUID matches the one provided
+        if [ "$key_uuid" == "$1" ]; then
+          valid_key=1
+        fi
+      fi
+    fi
+  done # End of project loop
+  if [ ! -z "$1" ]; then
+    if [ $valid_key -eq 0 ]; then
+      echo -e "\033[1;31mERROR: Github App Key with UUID \`$1\` not found!\033[0m"
+      return 1
+    fi
+    return 0
+  fi
+  return 0
+}
+
 
 # local colors=(black red green yellow blue magenta cyan white reset)
 # local color_codes=(30 31 32 33 34 35 36 37 0)
@@ -157,20 +199,20 @@ new_coolify_project() {
 detect_jq
 
 # Get the UUID of the server to deploy to:
-# get_coolify_servers
-# while true; do
-#   read -p $'\033[33mEnter the UUID of the Server to Deploy to:\033[0m ' COOLIFY_SERVER_UUID
-#   if [ -z "$COOLIFY_SERVER_UUID" ]; then
-#     echo -e "\033[31mPlease enter a valid UUID!\033[0m"
-#   else
-#     get_coolify_servers "$COOLIFY_SERVER_UUID"
-#     if [ $? -eq 0 ]; then
-#       break
-#     fi
-#   fi
-# done
+get_coolify_servers
+while true; do
+  read -p $'\033[33mEnter the UUID of the Server to Deploy to:\033[0m ' COOLIFY_SERVER_UUID
+  if [ -z "$COOLIFY_SERVER_UUID" ]; then
+    echo -e "\033[31mPlease enter a valid UUID!\033[0m"
+  else
+    get_coolify_servers "$COOLIFY_SERVER_UUID"
+    if [ $? -eq 0 ]; then
+      break
+    fi
+  fi
+done
 
-# Now, we need to select the Coolify Project to house the deployments
+# Now, we need to select the Coolify Project to house the deployments:
 while true; do # New/List/Add Loop
   read -p $'\033[33mDeploy to New Project or Add to existing one? \033[31mDefault: New \033[33m[New/List/Add]:\033[0m ' new_list_or_add
   if [ -z "$new_list_or_add" ]; then
@@ -200,6 +242,7 @@ while true; do # New/List/Add Loop
     get_coolify_projects
   elif [ "$new_list_or_add" == "ADD" ]; then
     # Get the UUID of the project:
+    get_coolify_projects
     while true; do
       read -p $'\033[33mEnter the UUID of the Project to use:\033[0m ' COOLIFY_PROJECT_UUID
       if [ -z "$COOLIFY_PROJECT_UUID" ]; then
@@ -208,8 +251,6 @@ while true; do # New/List/Add Loop
         get_coolify_projects "$COOLIFY_PROJECT_UUID"
         if [ $? -eq 0 ]; then
           break
-        else
-          get_coolify_projects
         fi
       fi
     done
@@ -217,16 +258,31 @@ while true; do # New/List/Add Loop
   fi
 done # End of New/List/Add Loop
 
+# Grab the UUID of the Github App Key, so we can actually deploy:
+get_coolify_github_key
+while true; do # Get Github Key loop
+  read -p $'\033[33mEnter the UUID of the Github App Key to use:\033[0m ' COOLIFY_GITHUB_APP_UUID
+  if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
+    echo -e "\033[31mPlease enter a valid UUID!\033[0m"
+  else
+    get_coolify_github_key "$COOLIFY_GITHUB_APP_UUID"
+    if [ $? -eq 0 ]; then
+      break
+    else
+      get_coolify_github_key
+    fi
+  fi
+done
+
 
 # Display the data we got from Coolify
 COOLIFY_VERSION=$(get_coolify_version)
 echo
 echo -e "\033[33mCoolify API Key:\033[0m $COOLIFY_API_KEY"
 echo -e "\033[33mCoolify Version:\033[0m $COOLIFY_VERSION"
+echo -e "\033[33mProject UUID:\033[0m $COOLIFY_PROJECT_UUID\033[0m"
 echo -e "\033[33mDeploying to Server:\033[0m $COOLIFY_SERVER_UUID\033[0m"
-echo -e "\033[33mDeploying to Project:\033[0m $COOLIFY_PROJECT_UUID\033[0m"
-
-COOLIFY_GITHUB_APP_UUID=""
+echo -e "\033[33mUsing Github App Key:\033[0m $COOLIFY_GITHUB_APP_UUID\033[0m"
 
 COOLIFY_ENVIRONMENT_NAME="production"
 COOLIFY_GIT_REPO_URL="https://github.com/tjr214/wasp-todo-demo-app.git"
@@ -237,22 +293,41 @@ COOLIFY_CLIENT_BUILDPACK="nixpacks"
 COOLIFY_SERVER_BUILDPACK="dockerfile"
 COOLIFY_CLIENT_DESCRIPTION="This is a cool fucking frontend"
 COOLIFY_SERVER_DESCRIPTION="This is a cool fucking backend"
-COOLIFY_CLIENT_IS_STATIC="true"
+COOLIFY_CLIENT_IS_STATIC=true
 COOLIFY_CLIENT_BASE_DIR="/"
 COOLIFY_SERVER_BASE_DIR="/deploy/server"
 COOLIFY_CLIENT_PUBLISH_DIR="/deploy/client"
 COOLIFY_SERVER_DOCKERFILE="/Dockerfile"
-COOLIFY_CLIENT_INSTANT_DEPLOY="true"
-COOLIFY_SERVER_INSTANT_DEPLOY="true"
+COOLIFY_CLIENT_INSTANT_DEPLOY=true
+COOLIFY_SERVER_INSTANT_DEPLOY=true
 COOLIFY_CLIENT_DOMAINS="$WASP_WEB_CLIENT_URL"
 COOLIFY_SERVER_DOMAINS="$WASP_SERVER_URL"
 
+echo -e "\033[33mEnvironemnt Name:\033[0m $COOLIFY_ENVIRONMENT_NAME\033[0m"
+echo -e "\033[33mGit Repo URL:\033[0m $COOLIFY_GIT_REPO_URL\033[0m"
+echo -e "\033[33mGit Branch:\033[0m $COOLIFY_GIT_BRANCH\033[0m"
+echo -e "\033[33mClient Ports Exposes:\033[0m $COOLIFY_CLIENT_PORTS_EXPOSES\033[0m"
+echo -e "\033[33mServer Ports Exposes:\033[0m $COOLIFY_SERVER_PORTS_EXPOSES\033[0m"
+echo -e "\033[33mClient Buildpack:\033[0m $COOLIFY_CLIENT_BUILDPACK\033[0m"
+echo -e "\033[33mServer Buildpack:\033[0m $COOLIFY_SERVER_BUILDPACK\033[0m"
+echo -e "\033[33mClient Description:\033[0m $COOLIFY_CLIENT_DESCRIPTION\033[0m"
+echo -e "\033[33mServer Description:\033[0m $COOLIFY_SERVER_DESCRIPTION\033[0m"
+echo -e "\033[33mClient Is Static:\033[0m $COOLIFY_CLIENT_IS_STATIC\033[0m"
+echo -e "\033[33mClient Base Dir:\033[0m $COOLIFY_CLIENT_BASE_DIR\033[0m"
+echo -e "\033[33mServer Base Dir:\033[0m $COOLIFY_SERVER_BASE_DIR\033[0m"
+echo -e "\033[33mClient Publish Dir:\033[0m $COOLIFY_CLIENT_PUBLISH_DIR\033[0m"
+echo -e "\033[33mServer Dockerfile:\033[0m $COOLIFY_SERVER_DOCKERFILE\033[0m"
+echo -e "\033[33mClient Instant Deploy:\033[0m $COOLIFY_CLIENT_INSTANT_DEPLOY\033[0m"
+echo -e "\033[33mServer Instant Deploy:\033[0m $COOLIFY_SERVER_INSTANT_DEPLOY\033[0m"
+echo -e "\033[33mClient Domains:\033[0m $COOLIFY_CLIENT_DOMAINS\033[0m"
+echo -e "\033[33mServer Domains:\033[0m $COOLIFY_SERVER_DOMAINS\033[0m"
 
-exit 1
+# exit 1
 
+# --url $COOLIFY_BASE_URL/api/v1/applications/private-gh-app \
 
 coolify_client_return=$(curl -s --request POST \
-  --url $COOLIFY_BASE_URL/api/v1/applications/private-gh-app \
+  --url $COOLIFY_BASE_URL/api/v1/applications/private-github-app \
   --header "$BEARER" \
   --header 'Content-Type: application/json' \
   --data '{
@@ -266,14 +341,14 @@ coolify_client_return=$(curl -s --request POST \
   "build_pack": "'"$COOLIFY_CLIENT_BUILDPACK"'",
   "description": "'"$COOLIFY_CLIENT_DESCRIPTION"'",
   "domains": "'"$COOLIFY_CLIENT_DOMAINS"'",
-  "is_static": "'"$COOLIFY_CLIENT_IS_STATIC"'",
+  "is_static": true,
   "base_directory": "'"$COOLIFY_CLIENT_BASE_DIR"'",
   "publish_directory": "'"$COOLIFY_CLIENT_PUBLISH_DIR"'",
-  "instant_deploy": "'"$COOLIFY_CLIENT_INSTANT_DEPLOY"'",
+  "instant_deploy": true,
 }')
 
 coolify_server_return=$(curl -s --request POST \
-  --url $COOLIFY_BASE_URL/api/v1/applications/private-gh-app \
+  --url $COOLIFY_BASE_URL/api/v1/applications/private-github-app \
   --header "$BEARER" \
   --header 'Content-Type: application/json' \
   --data '{
@@ -288,6 +363,13 @@ coolify_server_return=$(curl -s --request POST \
   "description": "'"$COOLIFY_SERVER_DESCRIPTION"'",
   "domains": "'"$COOLIFY_SERVER_DOMAINS"'",
   "base_directory": "'"$COOLIFY_SERVER_BASE_DIR"'",
-  "instant_deploy": "'"$COOLIFY_SERVER_INSTANT_DEPLOY"'",
+  "instant_deploy": '"'$COOLIFY_SERVER_INSTANT_DEPLOY'"',
   "dockerfile":"'"$COOLIFY_SERVER_DOCKERFILE"'",
 }')
+
+
+echo -e "\033[33mCleint Return:\033[0m $coolify_client_return"
+echo
+echo
+echo -e "\033[33mServer Return:\033[0m $coolify_server_return"
+echo
