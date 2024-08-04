@@ -10,14 +10,12 @@ github_app_uuid="zgg8c48"
 git_repository="tjr214/wasp-todo-demo-app"
 git_branch="main"
 ports_exposes="80"
-build_pack="nixpacks"
+build_pack="static"
 description="This is a cool fucking frontend"
 domains="https://test.thetjr.com"
-is_static="true"
 base_directory="/"
 publish_directory="/deploy/client"
 instant_deploy="true"
-dockerfile="/Dockerfile"
 
 # Set other parameters to empty strings or defaults
 git_commit_sha="HEAD"
@@ -143,7 +141,6 @@ client_payload=$(cat <<EOF
   "build_pack": "$build_pack",
   "description": "$description",
   "domains": "$domains",
-  "is_static": $is_static,
   "base_directory": "$base_directory",
   "publish_directory": "$publish_directory",
   "instant_deploy": $instant_deploy
