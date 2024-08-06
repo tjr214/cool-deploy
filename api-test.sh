@@ -236,9 +236,6 @@ EOF
 # local background_codes=(40 41 42 43 44 45 46 47)
 
 
-# Detect if the `jq` command line tool is installed and available
-detect_jq
-
 
 # ------------------------------------------------------------------------------
 # CUT #1
@@ -246,95 +243,104 @@ detect_jq
 # of the main `cool-deploy.sh` script.
 # ------------------------------------------------------------------------------
 
-# Get the UUID of the server to deploy to:
-if [ -z "$COOLIFY_SERVER_UUID" ]; then
-  get_coolify_servers
-  while true; do
-    read -p $'\033[33mEnter the UUID of the Server to Deploy to:\033[0m ' COOLIFY_SERVER_UUID
-    if [ -z "$COOLIFY_SERVER_UUID" ]; then
-      echo -e "\033[31mPlease enter a valid UUID!\033[0m"
-    else
-      get_coolify_servers "$COOLIFY_SERVER_UUID"
-      if [ $? -eq 0 ]; then
-        break
-      fi
-    fi
-  done
-fi
-
-# Now, we need to select the Coolify Project to house the deployments:
-if [ -z "$COOLIFY_PROJECT_UUID" ]; then
-  while true; do # New/List/Add Loop
-    read -p $'\033[33mDeploy to New Project or Add to existing one? \033[31mDefault: New \033[33m[New/List/Add]:\033[0m ' new_list_or_add
-    if [ -z "$new_list_or_add" ]; then
-      new_list_or_add="NEW"
-    fi
-    new_list_or_add=$(echo "$new_list_or_add" | tr '[:lower:]' '[:upper:]')
-    if [ "$new_list_or_add" == "NEW" ]; then # Create a new Project and get its UUID
-      while true; do # Get Project Name loop
-        read -p $'\033[33mEnter the Project Name:\033[0m ' new_project_name
-        if [ -z "$new_project_name" ]; then
-          echo -e "\033[31mPlease enter a valid Project Name!\033[0m"
-        else
-          break
-        fi
-      done # End of Project Name loop
-      while true; do # Get Project Description loop
-        read -p $'\033[33mEnter the Project Description:\033[0m ' new_project_description
-        if [ -z "$new_project_description" ]; then
-          echo -e "\033[31mPlease enter a valid Project Description!\033[0m"
-        else
-          break
-        fi
-      done # End of Project Description loop
-      COOLIFY_PROJECT_UUID=$(new_coolify_project "$new_project_name" "$new_project_description")
-      break
-    elif [ "$new_list_or_add" == "LIST" ]; then
-      get_coolify_projects
-    elif [ "$new_list_or_add" == "ADD" ]; then
-      # Get the UUID of the project:
-      get_coolify_projects
-      while true; do
-        read -p $'\033[33mEnter the UUID of the Project to use:\033[0m ' COOLIFY_PROJECT_UUID
-        if [ -z "$COOLIFY_PROJECT_UUID" ]; then
-          echo -e "\033[31mPlease enter a valid UUID!\033[0m"
-        else
-          get_coolify_projects "$COOLIFY_PROJECT_UUID"
-          if [ $? -eq 0 ]; then
-            break
-          fi
-        fi
-      done
-      break
-    fi
-  done # End of New/List/Add Loop
-fi
-
-if [ $GH_PRIVATE -eq 1 ]; then
-  # Grab the UUID of the Github App Key, so we can actually deploy:
-  if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
-    get_coolify_github_key
-    while true; do # Get Github Key loop
-      read -p $'\033[33mEnter the UUID of the Github App Key to use:\033[0m ' COOLIFY_GITHUB_APP_UUID
-      if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
+configure_server_project_key() {
+  # Get the UUID of the server to deploy to:
+  if [ -z "$COOLIFY_SERVER_UUID" ]; then
+    get_coolify_servers
+    while true; do
+      read -p $'\033[33mEnter the UUID of the Server to Deploy to:\033[0m ' COOLIFY_SERVER_UUID
+      if [ -z "$COOLIFY_SERVER_UUID" ]; then
         echo -e "\033[31mPlease enter a valid UUID!\033[0m"
       else
-        get_coolify_github_key "$COOLIFY_GITHUB_APP_UUID"
+        get_coolify_servers "$COOLIFY_SERVER_UUID"
         if [ $? -eq 0 ]; then
           break
-        else
-          get_coolify_github_key
         fi
       fi
     done
   fi
-fi
+
+  # Now, we need to select the Coolify Project to house the deployments:
+  if [ -z "$COOLIFY_PROJECT_UUID" ]; then
+    while true; do # New/List/Add Loop
+      read -p $'\033[33mDeploy to New Project or Add to existing one? \033[31mDefault: New \033[33m[New/List/Add]:\033[0m ' new_list_or_add
+      if [ -z "$new_list_or_add" ]; then
+        new_list_or_add="NEW"
+      fi
+      new_list_or_add=$(echo "$new_list_or_add" | tr '[:lower:]' '[:upper:]')
+      if [ "$new_list_or_add" == "NEW" ]; then # Create a new Project and get its UUID
+        while true; do # Get Project Name loop
+          read -p $'\033[33mEnter the Project Name:\033[0m ' new_project_name
+          if [ -z "$new_project_name" ]; then
+            echo -e "\033[31mPlease enter a valid Project Name!\033[0m"
+          else
+            break
+          fi
+        done # End of Project Name loop
+        while true; do # Get Project Description loop
+          read -p $'\033[33mEnter the Project Description:\033[0m ' new_project_description
+          if [ -z "$new_project_description" ]; then
+            echo -e "\033[31mPlease enter a valid Project Description!\033[0m"
+          else
+            break
+          fi
+        done # End of Project Description loop
+        COOLIFY_PROJECT_UUID=$(new_coolify_project "$new_project_name" "$new_project_description")
+        break
+      elif [ "$new_list_or_add" == "LIST" ]; then
+        get_coolify_projects
+      elif [ "$new_list_or_add" == "ADD" ]; then
+        # Get the UUID of the project:
+        get_coolify_projects
+        while true; do
+          read -p $'\033[33mEnter the UUID of the Project to use:\033[0m ' COOLIFY_PROJECT_UUID
+          if [ -z "$COOLIFY_PROJECT_UUID" ]; then
+            echo -e "\033[31mPlease enter a valid UUID!\033[0m"
+          else
+            get_coolify_projects "$COOLIFY_PROJECT_UUID"
+            if [ $? -eq 0 ]; then
+              break
+            fi
+          fi
+        done
+        break
+      fi
+    done # End of New/List/Add Loop
+  fi
+
+  if [ $GH_PRIVATE -eq 1 ]; then
+    # Grab the UUID of the Github App Key, so we can actually deploy:
+    if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
+      get_coolify_github_key
+      while true; do # Get Github Key loop
+        read -p $'\033[33mEnter the UUID of the Github App Key to use:\033[0m ' COOLIFY_GITHUB_APP_UUID
+        if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
+          echo -e "\033[31mPlease enter a valid UUID!\033[0m"
+        else
+          get_coolify_github_key "$COOLIFY_GITHUB_APP_UUID"
+          if [ $? -eq 0 ]; then
+            break
+          else
+            get_coolify_github_key
+          fi
+        fi
+      done
+    fi
+  fi
+  return 0
+}
 
 # ------------------------------------------------------------------------------
 # END CUT #1!
 # ------------------------------------------------------------------------------
 
 
+
+# Detect if the `jq` command line tool is installed and available
+detect_jq
+
+# Configure the Coolify Server, Project, and optional Github App Key
+configure_server_project_key
 
 # Set Coolify UUIDs
 # project_uuid="a484kkc"
@@ -536,10 +542,104 @@ fi
 # Time to configure the Development & Production Databases, if the user wants.
 # ------------------------------------------------------------------------------
 
-# TODO: Configure the dBs!
+# Ask the user if they want to configure the dBs! 
+SETUP_DBS=0
+while true; do
+  read -p $'\033[33mWould you like to configure the Databases? [y/n]:\033[0m ' configure_dbs
+  if [ "$configure_dbs" == "y" ]; then
+    SETUP_DBS=1
+    break
+  elif [ "$configure_dbs" == "Y" ]; then
+    SETUP_DBS=1
+    break
+  elif [ "$configure_dbs" == "yes" ]; then
+    SETUP_DBS=1
+    break
+  elif [ "$configure_dbs" == "" ]; then
+    # Default condition (yes)
+    SETUP_DBS=1
+    break
+  elif [ "$configure_dbs" == "n" ]; then
+    SETUP_DBS=0
+    break
+  elif [ "$configure_dbs" == "N" ]; then
+    SETUP_DBS=0
+    break
+  elif [ "$configure_dbs" == "no" ]; then
+    SETUP_DBS=0
+    break
+  fi
+done
 
-set_server_env "DATABASE_URL" "$DATABASE_URL"
-set_server_env "DATABASE_URL" "$DATABASE_URL" true
+if [ $SETUP_DBS -eq 1 ]; then
+  # Production db payload
+  create_prod_db_payload=$(cat <<EOF
+{
+  "server_uuid": "$server_uuid",
+  "project_uuid": "$project_uuid",
+  "environment_name": "$environment_name",
+  "description": "Production dB",
+  "is_public": false,
+  "instant_deploy": true
+}
+EOF
+)
+
+  # Development db payload
+  create_dev_db_payload=$(cat <<EOF
+{
+  "server_uuid": "$server_uuid",
+  "project_uuid": "$project_uuid",
+  "environment_name": "$environment_name",
+  "description": "Development dB",
+  "is_public": true,
+  "public_port": 7765,
+  "instant_deploy": true
+}
+EOF
+)
+
+  # Create the Production Database and bring it online
+  create_prod_db_return=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/databases/postgresql \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json' \
+    -d "$create_prod_db_payload")
+  echo
+  echo "CREATE PROD DB RETURN:"
+  if ! (echo "$create_prod_db_return" | jq . ); then
+    echo "$create_prod_db_return"
+  fi
+  prod_db_url=$(jq -r ".internal_db_url" <<< "$create_prod_db_return")
+
+  # Create the Development Database and get it up and running
+  create_dev_db_return=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/databases/postgresql \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json' \
+    -d "$create_dev_db_payload")
+  echo
+  echo "CREATE DEV DB RETURN:"
+  if ! (echo "$create_dev_db_return" | jq . ); then
+    echo "$create_dev_db_return"
+  fi
+  dev_db_url=$(jq -r ".external_db_url" <<< "$create_dev_db_return")
+
+  DATABASE_URL="$prod_db_url"
+
+  echo
+  echo "PROD DB URL: $prod_db_url"
+  echo "DEV DB URL: $dev_db_url"
+fi
+
+# Set the Environment Variable for the Database URL
+if [ ! -z "$DATABASE_URL" ]; then
+  set_server_env "DATABASE_URL" "$DATABASE_URL"
+  set_server_env "DATABASE_URL" "$DATABASE_URL" true
+else
+  set_server_env "DATABASE_URL" "todo"
+  set_server_env "DATABASE_URL" "todo" true
+fi
 
 # ------------------------------------------------------------------------------
 # STOP!
@@ -550,6 +650,10 @@ set_server_env "DATABASE_URL" "$DATABASE_URL" true
 # ------------------------------------------------------------------------------
 
 # TODO: Build the project and Push it to Git!
+echo
+echo
+echo "HERE IS WHERE WE WOULD BUILD THE PROJECT AND PUSH IT TO GIT!"
+echo
 
 # ------------------------------------------------------------------------------
 # RESUME HERE!
@@ -561,7 +665,6 @@ deploy_server_return=$(curl -s --request POST \
   --url $COOLIFY_BASE_URL/api/v1/applications/$configured_server_uuid/start \
   --header "$BEARER" \
   --header 'Content-Type: application/json')
-
 echo
 echo "DEPLOY SERVER RETURN:"
 if ! (echo "$deploy_server_return" | jq . ); then
