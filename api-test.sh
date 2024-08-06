@@ -1,10 +1,8 @@
 #!/bin/bash
-
 source .env.coolify
-
-# COOLIFY_API_KEY=""
-# COOLIFY_BASE_URL=""
 BEARER="Authorization: Bearer $COOLIFY_API_KEY"
+
+GH_PRIVATE=0
 
 # ------------------------------------------------------------------------------
 # Parsing the JSON from Coolify's API requires the `jq` command line tool.
@@ -183,6 +181,50 @@ get_coolify_github_key() {
   return 0
 }
 
+# ------------------------------------------------------------------------------
+# SET_SERVER_ENV
+# Required: $1 = Key
+# Required: $2 = Value
+# Optional: $3 = Is Preview?
+# ------------------------------------------------------------------------------
+set_server_env() {
+  if [ -z "$1" ]; then
+    echo "ERROR: No 'Key' Provided for Environment Variable!"
+    exit 1
+  fi
+  if [ -z "$2" ]; then
+    echo "ERROR: No 'Value' Provided for Environment Variable!"
+    exit 1
+  fi
+  if [ -z "$3" ]; then
+    local is_preview="false"
+  else
+    local is_preview="$3"
+  fi
+  local env_payload=$(cat <<EOF
+{
+  "key": "$1",
+  "value": "$2",
+  "is_preview": $is_preview
+}
+EOF
+)
+  local env_return=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/applications/$configured_server_uuid/envs \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json' \
+    -d "$env_payload")
+  local env_uuid=$(jq -r ".uuid" <<< "$env_return")
+  if [ -z "$env_uuid" ]; then
+    echo "ERROR: Server Set Env Variable Failed!"
+    if ! (echo "$env_return" | jq . ); then
+      echo "$env_return"
+    fi
+    exit 1
+  fi
+  return 0
+}
+
 
 # local colors=(black red green yellow blue magenta cyan white reset)
 # local color_codes=(30 31 32 33 34 35 36 37 0)
@@ -194,182 +236,345 @@ get_coolify_github_key() {
 # local background_codes=(40 41 42 43 44 45 46 47)
 
 
-
 # Detect if the `jq` command line tool is installed and available
 detect_jq
 
+
+# ------------------------------------------------------------------------------
+# CUT #1
+# CUT BELOW and PASTE INTO the "Configure our `cool-deploy`` script!" section
+# of the main `cool-deploy.sh` script.
+# ------------------------------------------------------------------------------
+
 # Get the UUID of the server to deploy to:
-get_coolify_servers
-while true; do
-  read -p $'\033[33mEnter the UUID of the Server to Deploy to:\033[0m ' COOLIFY_SERVER_UUID
-  if [ -z "$COOLIFY_SERVER_UUID" ]; then
-    echo -e "\033[31mPlease enter a valid UUID!\033[0m"
-  else
-    get_coolify_servers "$COOLIFY_SERVER_UUID"
-    if [ $? -eq 0 ]; then
-      break
+if [ -z "$COOLIFY_SERVER_UUID" ]; then
+  get_coolify_servers
+  while true; do
+    read -p $'\033[33mEnter the UUID of the Server to Deploy to:\033[0m ' COOLIFY_SERVER_UUID
+    if [ -z "$COOLIFY_SERVER_UUID" ]; then
+      echo -e "\033[31mPlease enter a valid UUID!\033[0m"
+    else
+      get_coolify_servers "$COOLIFY_SERVER_UUID"
+      if [ $? -eq 0 ]; then
+        break
+      fi
     fi
-  fi
-done
+  done
+fi
 
 # Now, we need to select the Coolify Project to house the deployments:
-while true; do # New/List/Add Loop
-  read -p $'\033[33mDeploy to New Project or Add to existing one? \033[31mDefault: New \033[33m[New/List/Add]:\033[0m ' new_list_or_add
-  if [ -z "$new_list_or_add" ]; then
-    new_list_or_add="NEW"
-  fi
-  new_list_or_add=$(echo "$new_list_or_add" | tr '[:lower:]' '[:upper:]')
-  if [ "$new_list_or_add" == "NEW" ]; then # Create a new Project and get its UUID
-    while true; do # Get Project Name loop
-      read -p $'\033[33mEnter the Project Name:\033[0m ' new_project_name
-      if [ -z "$new_project_name" ]; then
-        echo -e "\033[31mPlease enter a valid Project Name!\033[0m"
-      else
-        break
-      fi
-    done # End of Project Name loop
-    while true; do # Get Project Description loop
-      read -p $'\033[33mEnter the Project Description:\033[0m ' new_project_description
-      if [ -z "$new_project_description" ]; then
-        echo -e "\033[31mPlease enter a valid Project Description!\033[0m"
-      else
-        break
-      fi
-    done # End of Project Description loop
-    COOLIFY_PROJECT_UUID=$(new_coolify_project "$new_project_name" "$new_project_description")
-    break
-  elif [ "$new_list_or_add" == "LIST" ]; then
-    get_coolify_projects
-  elif [ "$new_list_or_add" == "ADD" ]; then
-    # Get the UUID of the project:
-    get_coolify_projects
-    while true; do
-      read -p $'\033[33mEnter the UUID of the Project to use:\033[0m ' COOLIFY_PROJECT_UUID
-      if [ -z "$COOLIFY_PROJECT_UUID" ]; then
+if [ -z "$COOLIFY_PROJECT_UUID" ]; then
+  while true; do # New/List/Add Loop
+    read -p $'\033[33mDeploy to New Project or Add to existing one? \033[31mDefault: New \033[33m[New/List/Add]:\033[0m ' new_list_or_add
+    if [ -z "$new_list_or_add" ]; then
+      new_list_or_add="NEW"
+    fi
+    new_list_or_add=$(echo "$new_list_or_add" | tr '[:lower:]' '[:upper:]')
+    if [ "$new_list_or_add" == "NEW" ]; then # Create a new Project and get its UUID
+      while true; do # Get Project Name loop
+        read -p $'\033[33mEnter the Project Name:\033[0m ' new_project_name
+        if [ -z "$new_project_name" ]; then
+          echo -e "\033[31mPlease enter a valid Project Name!\033[0m"
+        else
+          break
+        fi
+      done # End of Project Name loop
+      while true; do # Get Project Description loop
+        read -p $'\033[33mEnter the Project Description:\033[0m ' new_project_description
+        if [ -z "$new_project_description" ]; then
+          echo -e "\033[31mPlease enter a valid Project Description!\033[0m"
+        else
+          break
+        fi
+      done # End of Project Description loop
+      COOLIFY_PROJECT_UUID=$(new_coolify_project "$new_project_name" "$new_project_description")
+      break
+    elif [ "$new_list_or_add" == "LIST" ]; then
+      get_coolify_projects
+    elif [ "$new_list_or_add" == "ADD" ]; then
+      # Get the UUID of the project:
+      get_coolify_projects
+      while true; do
+        read -p $'\033[33mEnter the UUID of the Project to use:\033[0m ' COOLIFY_PROJECT_UUID
+        if [ -z "$COOLIFY_PROJECT_UUID" ]; then
+          echo -e "\033[31mPlease enter a valid UUID!\033[0m"
+        else
+          get_coolify_projects "$COOLIFY_PROJECT_UUID"
+          if [ $? -eq 0 ]; then
+            break
+          fi
+        fi
+      done
+      break
+    fi
+  done # End of New/List/Add Loop
+fi
+
+if [ $GH_PRIVATE -eq 1 ]; then
+  # Grab the UUID of the Github App Key, so we can actually deploy:
+  if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
+    get_coolify_github_key
+    while true; do # Get Github Key loop
+      read -p $'\033[33mEnter the UUID of the Github App Key to use:\033[0m ' COOLIFY_GITHUB_APP_UUID
+      if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
         echo -e "\033[31mPlease enter a valid UUID!\033[0m"
       else
-        get_coolify_projects "$COOLIFY_PROJECT_UUID"
+        get_coolify_github_key "$COOLIFY_GITHUB_APP_UUID"
         if [ $? -eq 0 ]; then
           break
+        else
+          get_coolify_github_key
         fi
       fi
     done
-    break
   fi
-done # End of New/List/Add Loop
+fi
 
-# Grab the UUID of the Github App Key, so we can actually deploy:
-get_coolify_github_key
-while true; do # Get Github Key loop
-  read -p $'\033[33mEnter the UUID of the Github App Key to use:\033[0m ' COOLIFY_GITHUB_APP_UUID
-  if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
-    echo -e "\033[31mPlease enter a valid UUID!\033[0m"
-  else
-    get_coolify_github_key "$COOLIFY_GITHUB_APP_UUID"
-    if [ $? -eq 0 ]; then
-      break
-    else
-      get_coolify_github_key
-    fi
-  fi
-done
+# ------------------------------------------------------------------------------
+# END CUT #1!
+# ------------------------------------------------------------------------------
 
+
+
+# Set Coolify UUIDs
+# project_uuid="a484kkc"
+# server_uuid="j484wks"
+# github_app_uuid="zgg8c48"
+project_uuid="$COOLIFY_PROJECT_UUID"
+server_uuid="$COOLIFY_SERVER_UUID"
+environment_name="$COOLIFY_ENVIRONMENT_NAME"
+if [ $GH_PRIVATE -eq 1 ]; then
+  github_app_uuid="$COOLIFY_GITHUB_APP_UUID"
+fi
+
+# Set Github variables
+# git_repository="tjr214/wasp-todo-demo-app"
+git_repository="https://github.com/tjr214/wasp-todo-demo-app.git"
+git_branch="$COOLIFY_GIT_BRANCH"
+git_commit_sha="$COOLIFY_GIT_COMMIT_SHA"
+
+# Set Coolify deployment variables
+client_ports_exposes="80"
+client_build_pack="static"
+client_description="This is a cool fucking frontend"
+client_domains="$WASP_WEB_CLIENT_URL"
+client_base_directory="/deploy/client"
+client_instant_deploy="false"
+
+server_ports_exposes="$PORT"
+server_build_pack="dockerfile"
+server_description="This is a cool fucking Backend"
+server_domains="$WASP_SERVER_URL"
+server_base_directory="/deploy/server"
+server_instant_deploy="false"
 
 # Display the data we got from Coolify
 COOLIFY_VERSION=$(get_coolify_version)
 echo
-echo -e "\033[33mCoolify API Key:\033[0m $COOLIFY_API_KEY"
+# echo -e "\033[33mCoolify API Key:\033[0m $COOLIFY_API_KEY"
 echo -e "\033[33mCoolify Version:\033[0m $COOLIFY_VERSION"
-echo -e "\033[33mProject UUID:\033[0m $COOLIFY_PROJECT_UUID\033[0m"
-echo -e "\033[33mDeploying to Server:\033[0m $COOLIFY_SERVER_UUID\033[0m"
-echo -e "\033[33mUsing Github App Key:\033[0m $COOLIFY_GITHUB_APP_UUID\033[0m"
+echo -e "\033[33mProject UUID:\033[0m $project_uuid\033[0m"
+echo -e "\033[33mDestination Server:\033[0m $server_uuid\033[0m"
+echo -e "\033[33mSource Repository:\033[0m $git_repository:$git_branch ($git_commit_sha)\033[0m"
+if [ $GH_PRIVATE -eq 1 ]; then
+  echo -e "\033[33mUsing Github App Key:\033[0m $github_app_uuid\033[0m"
+fi
 
-COOLIFY_ENVIRONMENT_NAME="production"
-COOLIFY_GIT_REPO_URL="https://github.com/tjr214/wasp-todo-demo-app.git"
-COOLIFY_GIT_BRANCH="main"
-COOLIFY_CLIENT_PORTS_EXPOSES="80"
-COOLIFY_SERVER_PORTS_EXPOSES="$PORT"
-COOLIFY_CLIENT_BUILDPACK="nixpacks"
-COOLIFY_SERVER_BUILDPACK="dockerfile"
-COOLIFY_CLIENT_DESCRIPTION="This is a cool fucking frontend"
-COOLIFY_SERVER_DESCRIPTION="This is a cool fucking backend"
-COOLIFY_CLIENT_IS_STATIC=true
-COOLIFY_CLIENT_BASE_DIR="/"
-COOLIFY_SERVER_BASE_DIR="/deploy/server"
-COOLIFY_CLIENT_PUBLISH_DIR="/deploy/client"
-COOLIFY_SERVER_DOCKERFILE="/Dockerfile"
-COOLIFY_CLIENT_INSTANT_DEPLOY=true
-COOLIFY_SERVER_INSTANT_DEPLOY=true
-COOLIFY_CLIENT_DOMAINS="$WASP_WEB_CLIENT_URL"
-COOLIFY_SERVER_DOMAINS="$WASP_SERVER_URL"
+# SERVER PAYLOADS
+if [ $GH_PRIVATE -eq 0 ]; then
+  # Deploying from Public GitHub Repo
+  server_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$server_ports_exposes",
+  "build_pack": "$server_build_pack",
+  "description": "$server_description",
+  "domains": "$server_domains",
+  "base_directory": "$server_base_directory",
+  "instant_deploy": $server_instant_deploy
+}
+EOF
+)
+elif [ $GH_PRIVATE -eq 1 ]; then
+  # Deploying from Private GitHub App
+  server_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "github_app_uuid": "$github_app_uuid",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$server_ports_exposes",
+  "build_pack": "$server_build_pack",
+  "description": "$server_description",
+  "domains": "$server_domains",
+  "base_directory": "$server_base_directory",
+  "instant_deploy": $server_instant_deploy
+}
+EOF
+)
+fi
 
-echo -e "\033[33mEnvironemnt Name:\033[0m $COOLIFY_ENVIRONMENT_NAME\033[0m"
-echo -e "\033[33mGit Repo URL:\033[0m $COOLIFY_GIT_REPO_URL\033[0m"
-echo -e "\033[33mGit Branch:\033[0m $COOLIFY_GIT_BRANCH\033[0m"
-echo -e "\033[33mClient Ports Exposes:\033[0m $COOLIFY_CLIENT_PORTS_EXPOSES\033[0m"
-echo -e "\033[33mServer Ports Exposes:\033[0m $COOLIFY_SERVER_PORTS_EXPOSES\033[0m"
-echo -e "\033[33mClient Buildpack:\033[0m $COOLIFY_CLIENT_BUILDPACK\033[0m"
-echo -e "\033[33mServer Buildpack:\033[0m $COOLIFY_SERVER_BUILDPACK\033[0m"
-echo -e "\033[33mClient Description:\033[0m $COOLIFY_CLIENT_DESCRIPTION\033[0m"
-echo -e "\033[33mServer Description:\033[0m $COOLIFY_SERVER_DESCRIPTION\033[0m"
-echo -e "\033[33mClient Is Static:\033[0m $COOLIFY_CLIENT_IS_STATIC\033[0m"
-echo -e "\033[33mClient Base Dir:\033[0m $COOLIFY_CLIENT_BASE_DIR\033[0m"
-echo -e "\033[33mServer Base Dir:\033[0m $COOLIFY_SERVER_BASE_DIR\033[0m"
-echo -e "\033[33mClient Publish Dir:\033[0m $COOLIFY_CLIENT_PUBLISH_DIR\033[0m"
-echo -e "\033[33mServer Dockerfile:\033[0m $COOLIFY_SERVER_DOCKERFILE\033[0m"
-echo -e "\033[33mClient Instant Deploy:\033[0m $COOLIFY_CLIENT_INSTANT_DEPLOY\033[0m"
-echo -e "\033[33mServer Instant Deploy:\033[0m $COOLIFY_SERVER_INSTANT_DEPLOY\033[0m"
-echo -e "\033[33mClient Domains:\033[0m $COOLIFY_CLIENT_DOMAINS\033[0m"
-echo -e "\033[33mServer Domains:\033[0m $COOLIFY_SERVER_DOMAINS\033[0m"
+# CLIENT PAYLOADS
+if [ $GH_PRIVATE -eq 0 ]; then
+  # Deploying from Public GitHub Repo
+  client_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$client_ports_exposes",
+  "build_pack": "$client_build_pack",
+  "description": "$client_description",
+  "domains": "$client_domains",
+  "base_directory": "$client_base_directory",
+  "instant_deploy": $client_instant_deploy
+}
+EOF
+)
+elif [ $GH_PRIVATE -eq 1 ]; then
+  # Deploying from Private GitHub App
+  client_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "github_app_uuid": "$github_app_uuid",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$client_ports_exposes",
+  "build_pack": "$client_build_pack",
+  "description": "$client_description",
+  "domains": "$client_domains",
+  "base_directory": "$client_base_directory",
+  "instant_deploy": $client_instant_deploy
+}
+EOF
+)
+fi
 
-# exit 1
+# Setup the Server on Coolify
+if [ $GH_PRIVATE -eq 0 ]; then
+  # Deploying from Public GitHub Repo
+  coolify_server_return=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/applications/public \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json' \
+    -d "$server_payload")
+elif [ $GH_PRIVATE -eq 1 ]; then
+  # Deploying from Private GitHub App
+  coolify_server_return=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/applications/private-github-app \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json' \
+    -d "$server_payload")
+fi
+configured_server_uuid=$(jq -r ".uuid" <<< "$coolify_server_return")
+if [ -z "$configured_server_uuid" ]; then
+  echo "ERROR: Server Deployment Failed!"
+  exit 1
+else
+  echo "SERVER SETUP RETURN:"
+  if ! (echo "$coolify_server_return" | jq . ); then
+    echo "$coolify_server_return"
+  fi
+fi
 
-# --url $COOLIFY_BASE_URL/api/v1/applications/private-gh-app \
+# Config the Server Env Vars
+set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL"
+set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL"
+set_server_env "PORT" "$PORT"
+set_server_env "JWT_SECRET" "$JWT_SECRET"
 
-coolify_client_return=$(curl -s --request POST \
-  --url $COOLIFY_BASE_URL/api/v1/applications/private-github-app \
+# And again for the Preview Deploys
+set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL" true
+set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL" true
+set_server_env "PORT" "$PORT" true
+set_server_env "JWT_SECRET" "$JWT_SECRET" true
+
+# Next, setup the Client
+if [ $GH_PRIVATE -eq 0 ]; then
+  # Deploying from Public GitHub Repo
+  coolify_client_return=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/applications/public \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json' \
+    -d "$client_payload")
+elif [ $GH_PRIVATE -eq 1 ]; then
+  # Deploying from Private GitHub App
+  coolify_client_return=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/applications/private-github-app \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json' \
+    -d "$client_payload")
+fi
+echo
+configured_client_uuid=$(jq -r ".uuid" <<< "$coolify_client_return")
+if [ -z "$configured_client_uuid" ]; then
+  echo "ERROR: Client Setup Failed!"
+  exit 1
+else
+  echo "CLIENT SETUP RETURN:"
+  if ! (echo "$coolify_client_return" | jq . ); then
+    echo "$coolify_client_return"
+  fi
+fi
+
+# ------------------------------------------------------------------------------
+# STOP!
+# Time to configure the Development & Production Databases, if the user wants.
+# ------------------------------------------------------------------------------
+
+# TODO: Configure the dBs!
+
+set_server_env "DATABASE_URL" "$DATABASE_URL"
+set_server_env "DATABASE_URL" "$DATABASE_URL" true
+
+# ------------------------------------------------------------------------------
+# STOP!
+# At this point, Wasp Project is setup & configured on the Coolify Server.
+# The Dev and Prod Databases are also configured & up and running.
+# All Env Variables are configured.
+# NOW we can Build the project and Push it to Git!
+# ------------------------------------------------------------------------------
+
+# TODO: Build the project and Push it to Git!
+
+# ------------------------------------------------------------------------------
+# RESUME HERE!
+# Now, deploy the Coolify Projects so they are live!
+# ------------------------------------------------------------------------------
+
+# Actually deploy the Server to Coolify!
+deploy_server_return=$(curl -s --request POST \
+  --url $COOLIFY_BASE_URL/api/v1/applications/$configured_server_uuid/start \
   --header "$BEARER" \
-  --header 'Content-Type: application/json' \
-  --data '{
-  "project_uuid": "'"$COOLIFY_PROJECT_UUID"'",
-  "server_uuid": "'"$COOLIFY_SERVER_UUID"'",
-  "environment_name": "'"$COOLIFY_ENVIRONMENT_NAME"'",
-  "github_app_uuid": "'"$COOLIFY_GITHUB_APP_UUID"'",
-  "git_repository": "'"$COOLIFY_GIT_REPO_URL"'",
-  "git_branch": "'"$COOLIFY_GIT_BRANCH"'",
-  "ports_exposes": "'"$COOLIFY_CLIENT_PORTS_EXPOSES"'",
-  "build_pack": "'"$COOLIFY_CLIENT_BUILDPACK"'",
-  "description": "'"$COOLIFY_CLIENT_DESCRIPTION"'",
-  "domains": "'"$COOLIFY_CLIENT_DOMAINS"'",
-  "is_static": true,
-  "base_directory": "'"$COOLIFY_CLIENT_BASE_DIR"'",
-  "publish_directory": "'"$COOLIFY_CLIENT_PUBLISH_DIR"'",
-  "instant_deploy": true,
-}')
+  --header 'Content-Type: application/json')
 
-coolify_server_return=$(curl -s --request POST \
-  --url $COOLIFY_BASE_URL/api/v1/applications/private-github-app \
+echo
+echo "DEPLOY SERVER RETURN:"
+if ! (echo "$deploy_server_return" | jq . ); then
+  echo "$deploy_server_return"
+fi
+
+# And finally, the actual Client deploys to Coolify, as well...
+deploy_client_return=$(curl -s --request POST \
+  --url $COOLIFY_BASE_URL/api/v1/applications/$configured_client_uuid/start \
   --header "$BEARER" \
-  --header 'Content-Type: application/json' \
-  --data '{
-  "project_uuid": "'"$COOLIFY_PROJECT_UUID"'",
-  "server_uuid": "'"$COOLIFY_SERVER_UUID"'",
-  "environment_name": "'"$COOLIFY_ENVIRONMENT_NAME"'",
-  "github_app_uuid": "'"$COOLIFY_GITHUB_APP_UUID"'",
-  "git_repository": "'"$COOLIFY_GIT_REPO_URL"'",
-  "git_branch": "'"$COOLIFY_GIT_BRANCH"'",
-  "ports_exposes": "'"$COOLIFY_SERVER_PORTS_EXPOSES"'",
-  "build_pack": "'"$COOLIFY_SERVER_BUILDPACK"'",
-  "description": "'"$COOLIFY_SERVER_DESCRIPTION"'",
-  "domains": "'"$COOLIFY_SERVER_DOMAINS"'",
-  "base_directory": "'"$COOLIFY_SERVER_BASE_DIR"'",
-  "instant_deploy": '"'$COOLIFY_SERVER_INSTANT_DEPLOY'"',
-  "dockerfile":"'"$COOLIFY_SERVER_DOCKERFILE"'",
-}')
-
-
-echo -e "\033[33mCleint Return:\033[0m $coolify_client_return"
+  --header 'Content-Type: application/json')
 echo
-echo
-echo -e "\033[33mServer Return:\033[0m $coolify_server_return"
-echo
+echo "DEPLOY CLIENT RETURN:"
+if ! (echo "$deploy_client_return" | jq . ); then
+  echo "$deploy_client_return"
+fi

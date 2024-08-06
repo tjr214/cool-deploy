@@ -91,9 +91,15 @@ else # Configure our `cool-deploy`` script!
   echo -e "\033[1;32m🤖 --- LET'S GET COOL-DEPLOY SET UP! ---\033[0m"
   SETTINGS_CONFIRM=0
   FIRST_TIME_RUN=1
+  FINISHED_COOLIFY_SETUP=0
   while [ $SETTINGS_CONFIRM -eq 0 ]; do # Get user inout and configure vars
     echo
     # Get user input for the variables:
+
+    # ------------------------------------------------------------------------------
+    # CUT #1 GOES HERE!
+    # ------------------------------------------------------------------------------
+
     while true; do
       read -p $'\033[33mWhere will the frontend be deployed (ex: https://app.server.com):\033[0m ' WASP_WEB_CLIENT_URL
       if [ -z "$WASP_WEB_CLIENT_URL" ]; then

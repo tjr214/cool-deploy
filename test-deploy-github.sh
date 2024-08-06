@@ -214,7 +214,7 @@ if ! (echo "$deploy_server_return" | jq . ); then
   echo "$deploy_server_return"
 fi
 
-# Finally, setup & deploy the Client to Coolify!
+# Next, setup the Client
 if [ $GH_PRIVATE -eq 0 ]; then
   # Deploying from Public GitHub Repo
   coolify_client_return=$(curl -s --request POST \
@@ -242,7 +242,7 @@ else
   fi
 fi
 
-# The actual Client deploy...
+# Finally, the actual Client deploy to Coolify...
 deploy_client_return=$(curl -s --request POST \
   --url $COOLIFY_BASE_URL/api/v1/applications/$configured_client_uuid/start \
   --header "$BEARER" \
