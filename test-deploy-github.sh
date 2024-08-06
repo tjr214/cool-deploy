@@ -33,7 +33,7 @@ set_server_env() {
 EOF
 )
   local env_return=$(curl -s --request POST \
-    --url $COOLIFY_BASE_URL/api/v1/applications/$deployed_server_uuid/envs \
+    --url $COOLIFY_BASE_URL/api/v1/applications/$configured_server_uuid/envs \
     --header "$BEARER" \
     --header 'Content-Type: application/json' \
     -d "$env_payload")
@@ -67,7 +67,7 @@ client_build_pack="static"
 client_description="This is a cool fucking frontend"
 client_domains="$WASP_WEB_CLIENT_URL"
 client_base_directory="/deploy/client"
-client_instant_deploy="true"
+client_instant_deploy="false"
 
 server_ports_exposes="$PORT"
 server_build_pack="dockerfile"
@@ -177,8 +177,8 @@ elif [ $GH_PRIVATE -eq 1 ]; then
     --header 'Content-Type: application/json' \
     -d "$server_payload")
 fi
-deployed_server_uuid=$(jq -r ".uuid" <<< "$coolify_server_return")
-if [ -z "$deployed_server_uuid" ]; then
+configured_server_uuid=$(jq -r ".uuid" <<< "$coolify_server_return")
+if [ -z "$configured_server_uuid" ]; then
   echo "ERROR: Server Deployment Failed!"
   exit 1
 else
@@ -204,7 +204,7 @@ set_server_env "JWT_SECRET" "$JWT_SECRET" true
 
 # Actually deploy the Server to Coolify!
 deploy_server_return=$(curl -s --request POST \
-  --url $COOLIFY_BASE_URL/api/v1/applications/$deployed_server_uuid/start \
+  --url $COOLIFY_BASE_URL/api/v1/applications/$configured_server_uuid/start \
   --header "$BEARER" \
   --header 'Content-Type: application/json')
 
@@ -214,7 +214,7 @@ if ! (echo "$deploy_server_return" | jq . ); then
   echo "$deploy_server_return"
 fi
 
-# Finally, deploy the Client to Coolify!
+# Finally, setup & deploy the Client to Coolify!
 if [ $GH_PRIVATE -eq 0 ]; then
   # Deploying from Public GitHub Repo
   coolify_client_return=$(curl -s --request POST \
@@ -230,9 +230,25 @@ elif [ $GH_PRIVATE -eq 1 ]; then
     --header 'Content-Type: application/json' \
     -d "$client_payload")
 fi
-
 echo
-echo "CLIENT SETUP & DEPLOY RETURN:"
-if ! (echo "$coolify_client_return" | jq . ); then
-  echo "$coolify_client_return"
+configured_client_uuid=$(jq -r ".uuid" <<< "$coolify_client_return")
+if [ -z "$configured_client_uuid" ]; then
+  echo "ERROR: Client Setup Failed!"
+  exit 1
+else
+  echo "CLIENT SETUP RETURN:"
+  if ! (echo "$coolify_client_return" | jq . ); then
+    echo "$coolify_client_return"
+  fi
+fi
+
+# The actual Client deploy...
+deploy_client_return=$(curl -s --request POST \
+  --url $COOLIFY_BASE_URL/api/v1/applications/$configured_client_uuid/start \
+  --header "$BEARER" \
+  --header 'Content-Type: application/json')
+echo
+echo "DEPLOY CLIENT RETURN:"
+if ! (echo "$deploy_client_return" | jq . ); then
+  echo "$deploy_client_return"
 fi
