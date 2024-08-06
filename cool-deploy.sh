@@ -71,7 +71,6 @@ get_coolify_servers() {
   local servers=$(curl -s --request GET \
     --url $COOLIFY_BASE_URL/api/v1/servers \
     --header "$BEARER")
-
   local server_count=$(jq '. | length' <<< "$servers")
   for ((i = 0; i < server_count; i++)); do # Loop through all servers
     local uuid=$(jq -r ".[$i].uuid" <<< "$servers")
@@ -252,6 +251,24 @@ EOF
 # ------------------------------------------------------------------------------
 configure_server_project_key() {
   echo
+  local do_header=0
+  if [ -z "$COOLIFY_SERVER_UUID" ]; then
+    do_header=1
+  fi
+  if [ -z "$COOLIFY_PROJECT_UUID" ]; then
+    do_header=1
+  fi
+  if [ $GH_PRIVATE -eq 1 ]; then
+    if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
+      do_header=1
+    fi
+  fi
+
+  if [ $do_header -eq 1 ]; then
+    echo -e "\033[1;32m🤖 --- CONFIGURING SOME COOLIFY VARIABLES... ---\033[0m"
+    echo
+  fi
+
   # Get the UUID of the server to deploy to:
   if [ -z "$COOLIFY_SERVER_UUID" ]; then
     get_coolify_servers
@@ -409,7 +426,13 @@ if [ -e ".env.coolify" ]; then
   source .env.coolify
   if [ -z "$COOLIFY_API_KEY" ]; then
     echo
-    echo -e "\033[1;31m🛑 --- ERROR: Coolify API Key not found in \`.env.coolify\`! ---\033[0m"
+    echo -e "\033[1;31m🛑 --- ERROR: 'COOLIFY_API_KEY' not found in \`.env.coolify\`! ---\033[0m"
+    echo
+    exit 1
+  fi
+  if [ -z "$COOLIFY_BASE_URL" ]; then
+    echo
+    echo -e "\033[1;31m🛑 --- ERROR: 'COOLIFY_BASE_URL' not found in \`.env.coolify\`! ---\033[0m"
     echo
     exit 1
   fi
@@ -420,6 +443,17 @@ else # Configure our `cool-deploy`` script!
   SETTINGS_CONFIRM=0
   FIRST_TIME_RUN=1
   FINISHED_COOLIFY_SETUP=0
+
+  # Get the Coolify Base URL
+  echo
+  while true; do
+    read -p $'\033[33mEnter your Coolify Base URL (e.g. https://coolify.server.com):\033[0m ' COOLIFY_BASE_URL
+    if [ -z "$COOLIFY_BASE_URL" ]; then
+      echo -e "\033[31mPlease enter a valid Coolify Base URL!\033[0m"
+    else
+      break
+    fi
+  done
 
   # Get the Coolify API Key
   while true; do
@@ -432,9 +466,49 @@ else # Configure our `cool-deploy`` script!
   done
   BEARER="Authorization: Bearer $COOLIFY_API_KEY"
 
+  test_call=$(get_coolify_version)
+  TEST_CALL_LOOP=0
+  echo
+  echo "Coolify Version: $test_call"
+  echo -e "If you can see the Coolify Version Number we can successfully connect!"
+  while true; do
+    read -p $'\033[31mCONFIRM:\033[33m Do you see the Version Number? [Y/n]:\033[0m ' TEST_CALL_CONTINUE
+    if [ "$TEST_CALL_CONTINUE" == "y" ]; then
+      break
+    elif [ "$TEST_CALL_CONTINUE" == "Y" ]; then
+      break
+    elif [ "$TEST_CALL_CONTINUE" == "yes" ]; then
+      break
+    elif [ "$TEST_CALL_CONTINUE" == "" ]; then
+      break
+    elif [ "$TEST_CALL_CONTINUE" == "n" ]; then
+      TEST_CALL_LOOP=1
+      break
+    elif [ "$CONTINUE" == "N" ]; then
+      TEST_CALL_LOOP=1
+      break
+    elif [ "$CONTINUE" == "no" ]; then
+      TEST_CALL_LOOP=1
+      break
+    fi
+  done
+
+  if [ "$TEST_CALL_LOOP" -eq 1 ]; then
+    echo
+    echo -e "\033[1;31m🛑 --- ERROR: 'COOLIFY_BASE_URL' and/or 'COOLIFY_API_KEY' not correctly configured! ---\033[0m"
+    echo
+    exit 1
+  fi
+
   while [ $SETTINGS_CONFIRM -eq 0 ]; do # Get user inout and configure vars
     # Configure the Coolify Server, Project, and optional Github App Key
     configure_server_project_key
+    echo
+
+    # TODO: This is where we should ask if user wants to setup a dB!
+    echo -e "!!!!!!!!!!!"
+    echo "TODO: THIS IS WHERE WE WANT TO ASK USER ABOUT dB SETUP!!!"
+    echo -e "!!!!!!!!!!!"
     echo
     
     # Get user input for the remaining variables:
@@ -471,11 +545,20 @@ else # Configure our `cool-deploy`` script!
     echo
     echo -e "\033[1;36m🤖 --- SETTINGS AND ENVIRONMENT CONFIGURATION ---\033[0m"
     echo
+    echo -e "\033[1;34mCOOLIFY_API_KEY\033[0m=$COOLIFY_API_KEY"
+    echo -e "\033[1;34mCOOLIFY_BASE_URL\033[0m=$COOLIFY_BASE_URL"
+    echo -e "\033[1;34mCOOLIFY_SERVER_UUID\033[0m=$COOLIFY_SERVER_UUID"
+    echo -e "\033[1;34mCOOLIFY_PROJECT_UUID\033[0m=$COOLIFY_PROJECT_UUID"
+    echo -e "\033[1;34mCOOLIFY_GIT_REPOSITORY\033[0m=$COOLIFY_GIT_REPOSITORY"
+    echo -e "\033[1;34mCOOLIFY_GIT_BRANCH\033[0m=$COOLIFY_GIT_BRANCH"
+    echo -e "\033[1;34mCOOLIFY_GIT_COMMIT_SHA\033[0m=$COOLIFY_GIT_COMMIT_SHA"
+    echo
     echo -e "\033[1;34mWASP_WEB_CLIENT_URL\033[0m=$WASP_WEB_CLIENT_URL"
     echo -e "\033[1;34mWASP_SERVER_URL\033[0m=$REACT_APP_API_URL"
     echo -e "\033[1;34mWASP_SERVER_PORT\033[0m=$WASP_SERVER_PORT"
     echo -e "\033[1;34mDATABASE_URL\033[0m=$WASP_DATABASE_URL"
     echo -e "\033[1;34mJWT_SECRET\033[0m=$WASP_JWT_SECRET"
+    echo
     echo -e "\033[1;34mCLIENT_DEPLOY_DIR\033[0m=$CLIENT_DEPLOY_DIR"
     echo -e "\033[1;34mSERVER_DEPLOY_DIR\033[0m=$SERVER_DEPLOY_DIR"
     echo
@@ -505,6 +588,16 @@ else # Configure our `cool-deploy`` script!
     if [ $SETTINGS_CONFIRM -eq 0 ]; then
       echo
       echo -e "\033[31m🛑 --- Settings not configured! Trying again... ---\033[0m"
+      COOLIFY_PROJECT_UUID=""
+      COOLIFY_SERVER_UUID=""
+      # COOLIFY_SERVER_DESCRIPTION=""
+      # COOLIFY_CLIENT_DESCRIPTION=""
+      # COOLIFY_GIT_REPOSITORY=""
+      # COOLIFY_GIT_BRANCH=""
+      # COOLIFY_GIT_COMMIT_SHA=""
+      if [ $GH_PRIVATE -eq 1 ]; then
+        COOLIFY_GITHUB_APP_UUID=""
+      fi
     fi
   done # End of settings config loop
 
@@ -658,26 +751,26 @@ fi
 # Set Github variables
 # TODO: grab these values from the user!
 # git_repository="tjr214/wasp-todo-demo-app"
-git_repository="https://github.com/tjr214/wasp-todo-demo-app.git" # TODO: grab these values from the user!
+git_repository="$COOLIFY_GIT_REPOSITORY" # TODO: grab these values from the user!
 git_branch="$COOLIFY_GIT_BRANCH" # TODO: grab these values from the user!
 git_commit_sha="$COOLIFY_GIT_COMMIT_SHA" # TODO: grab these values from the user!
 
 # Set Coolify deployment variables
 client_ports_exposes="80"
 client_build_pack="static"
-client_description="This is a cool fucking frontend" # TODO: grab these values from the user!
+client_description="$COOLIFY_CLIENT_DESCRIPTION" # TODO: grab these values from the user!
 client_domains="$WASP_WEB_CLIENT_URL"
 client_base_directory="/deploy/client"
 client_instant_deploy="false"
 
 server_ports_exposes="$PORT"
 server_build_pack="dockerfile"
-server_description="This is a cool fucking Backend" # TODO: grab these values from the user!
+server_description="$COOLIFY_SERVER_DESCRIPTION" # TODO: grab these values from the user!
 server_domains="$REACT_APP_API_URL"
 server_base_directory="/deploy/server"
 server_instant_deploy="false"
 
-echo -e "\033[1;36m🤖 --- PROJECT & DEPLOYMENT INFO...\033[0m"
+echo -e "\033[1;36m🤖 --- WASP PROJECT & SERVER DEPLOYMENT INFO...\033[0m"
 echo
 
 echo -e "\033[1;43m• WASP PROJECT \033[3;43m$WASP_APP_NAME \033[0m"
