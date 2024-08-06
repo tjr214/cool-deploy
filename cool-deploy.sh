@@ -8,8 +8,6 @@ COOLIFY_API_KEY=""
 BEARER=""
 GH_PRIVATE=0
 
-# JWT_SECRET=0
-
 # Deploy directories
 DEPLOY_DIR=$WASP_PROJECT_DIR/deploy
 CLIENT_DEPLOY_DIR=$DEPLOY_DIR/client
@@ -19,11 +17,13 @@ SERVER_DEPLOY_DIR=$DEPLOY_DIR/server
 cd $WASP_PROJECT_DIR
 WASP_APP_NAME=$(grep -o 'app \w\+' main.wasp | cut -d' ' -f2)
 WASP_VERSION=$(awk '/wasp: {/,/}/ {if ($1 == "version:") {gsub(/[",]/, "", $2); sub(/^\^/, "", $2); print $2; exit}}' main.wasp)
+if [ -z "$WASP_APP_NAME" ]; then
+  WASP_APP_NAME="unknownWaspApp"
+fi
+if [ -z "$WASP_VERSION" ]; then
+  WASP_VERSION="unknownVersion"
+fi
 
-# if grep -q -z -E "JWT_SECRET=" .env.server; then
-#   WASP_JWT_SECRET=$(grep -E "JWT_SECRET=" .env.server | cut -d '=' -f 2-)
-#   JWT_SECRET=1
-# fi
 
 # ------------------------------------------------------------------------------
 # Parsing the JSON from Coolify's API requires the `jq` command line tool.
@@ -408,9 +408,10 @@ if [ -e ".env.coolify" ]; then
   echo -e "\033[1;32m🤖 --- LOADING ENVIRONMENT VARIABLES FROM .env.coolify ---\033[0m"
   source .env.coolify
   if [ -z "$COOLIFY_API_KEY" ]; then
-      echo -e "\033[1;31m🛑 --- ERROR: Coolify API Key not found in \`.env.coolify\`! ---\033[0m"
-      echo
-      exit 1
+    echo
+    echo -e "\033[1;31m🛑 --- ERROR: Coolify API Key not found in \`.env.coolify\`! ---\033[0m"
+    echo
+    exit 1
   fi
   BEARER="Authorization: Bearer $COOLIFY_API_KEY"
   configure_server_project_key # if any of this is missing, go grab it from the user
@@ -456,14 +457,9 @@ else # Configure our `cool-deploy`` script!
     done
 
     read -p $'\033[33mWhat port should the server run on? (default 3000):\033[0m ' WASP_SERVER_PORT
+    # TODO: Ask if you need to setup a dB first...
     read -p $'\033[33mDatabase URL (or, hit enter to leave blank for now):\033[0m ' WASP_DATABASE_URL
     read -p $'\033[33mJWT Secret Key (or, hit enter to generate):\033[0m ' WASP_JWT_SECRET
-
-    # if [ $JWT_SECRET -eq 0 ]; then
-    #   read -p $'\033[33mJWT Secret Key (or, hit enter to generate):\033[0m ' WASP_JWT_SECRET
-    # else
-    #   echo -e "\033[33m🤙 --- Using JWT Secret already defined in \`.env.server\`. ---\033[0m"
-    # fi
     
     # Finalize the variables' content
     REACT_APP_API_URL=$WASP_SERVER_URL
@@ -677,7 +673,7 @@ client_instant_deploy="false"
 server_ports_exposes="$PORT"
 server_build_pack="dockerfile"
 server_description="This is a cool fucking Backend" # TODO: grab these values from the user!
-server_domains="$WASP_SERVER_URL"
+server_domains="$REACT_APP_API_URL"
 server_base_directory="/deploy/server"
 server_instant_deploy="false"
 
@@ -697,8 +693,8 @@ fi
 echo -e "\033[1;33m - Local Project Directory:\033[0m $WASP_PROJECT_DIR"
 echo -e "\033[1;33m - Local Client Directory:\033[0m $CLIENT_DEPLOY_DIR"
 echo -e "\033[1;33m - Local Server Directory:\033[0m $SERVER_DEPLOY_DIR"
-echo -e "\033[1;33m - Client URL:\033[0m \033[34m$WASP_WEB_CLIENT_URL\033[0m"
-echo -e "\033[1;33m - Server URL:\033[0m \033[34m$REACT_APP_API_URL\033[0m"
+echo -e "\033[1;33m - Client URL:\033[0m \033[34m$client_domains\033[0m"
+echo -e "\033[1;33m - Server URL:\033[0m \033[34m$server_domains\033[0m"
 echo -e "\033[1;33m - JWT Secret:\033[0m \033[35m$JWT_SECRET\033[0m"
 echo
 
