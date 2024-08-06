@@ -386,6 +386,11 @@ if [ $GH_PRIVATE -eq 1 ]; then
   echo -e "\033[33mUsing Github App Key:\033[0m $github_app_uuid\033[0m"
 fi
 
+
+
+
+
+
 # SERVER PAYLOADS
 if [ $GH_PRIVATE -eq 0 ]; then
   # Deploying from Public GitHub Repo
@@ -537,10 +542,6 @@ else
   fi
 fi
 
-# ------------------------------------------------------------------------------
-# STOP!
-# Time to configure the Development & Production Databases, if the user wants.
-# ------------------------------------------------------------------------------
 
 # Ask the user if they want to configure the dBs! 
 SETUP_DBS=0
