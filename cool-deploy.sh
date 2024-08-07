@@ -4,8 +4,8 @@
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PARENT_DIR=$(dirname "$WASP_PROJECT_DIR")
 FIRST_TIME_RUN=0
-COOLIFY_API_KEY=""
 BEARER=""
+COOLIFY_GITHUB_APP_UUID=0
 GH_PRIVATE=0
 
 # Deploy directories
@@ -246,10 +246,10 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
-# CONFIGURE_SERVER_PROJECT_KEY
+# configure_some_coolify_settings
 # TODO
 # ------------------------------------------------------------------------------
-configure_server_project_key() {
+configure_some_coolify_settings() {
   echo
   local do_header=0
   if [ -z "$COOLIFY_SERVER_UUID" ]; then
@@ -265,7 +265,7 @@ configure_server_project_key() {
   fi
 
   if [ $do_header -eq 1 ]; then
-    echo -e "\033[1;32m🤖 --- CONFIGURING SOME COOLIFY VARIABLES... ---\033[0m"
+    echo -e "\033[1;32m🤖 --- CONFIGURING SOME COOLIFY SETTINGS & VARIABLES... ---\033[0m"
     echo
   fi
 
@@ -355,6 +355,34 @@ configure_server_project_key() {
   return 0
 }
 
+# ------------------------------------------------------------------------------
+# run_coolify_healthcheck
+# Let's make sure Coolify is up and running!
+# ------------------------------------------------------------------------------
+run_coolify_healthcheck() {
+  local test_call=$(get_coolify_version)
+  if [ -z "$test_call" ]; then
+    test_call="\033[1;41m FAILED \033[0m"
+  else
+    test_call="\033[1;42m SUCCESS \033[0m"
+  fi
+  echo
+  echo -e "\033[1;37mCoolify Healthcheck:\033[0m $test_call"
+
+  if [ "$test_call" == "\033[1;41m FAILED \033[0m" ]; then
+    echo -e "\033[1;37mOh, no! Something went wrong and we couldn't connect to Coolify!\033[0m"
+    echo
+    echo -e "\033[1;31m🛑 --- ERROR: 'COOLIFY_BASE_URL' and/or 'COOLIFY_API_KEY' not correctly configured! ---\033[0m"
+    echo
+    echo -e "COOLIFY_BASE_URL: $COOLIFY_BASE_URL"
+    echo -e "COOLIFY_API_KEY: $COOLIFY_API_KEY"
+    echo
+    exit 1
+  elif [ "$test_call" == "\033[1;42m SUCCESS \033[0m" ]; then
+    echo -e "\033[1;37mIf you can see this, we can successfully connect to Coolify!\033[0m"
+  fi
+}
+
 # Detect if the `jq` command line tool is installed and available
 detect_jq
 
@@ -437,72 +465,50 @@ if [ -e ".env.coolify" ]; then
     exit 1
   fi
   BEARER="Authorization: Bearer $COOLIFY_API_KEY"
-  configure_server_project_key # if any of this is missing, go grab it from the user
+  run_coolify_healthcheck
+  configure_some_coolify_settings # if any of this is missing, go grab it from the user
 else # Configure our `cool-deploy`` script!
   echo -e "\033[1;32m🤖 --- LET'S GET COOL-DEPLOY SET UP! ---\033[0m"
   SETTINGS_CONFIRM=0
   FIRST_TIME_RUN=1
   FINISHED_COOLIFY_SETUP=0
+  echo
 
   # Get the Coolify Base URL
-  echo
-  while true; do
-    read -p $'\033[33mEnter your Coolify Base URL (e.g. https://coolify.server.com):\033[0m ' COOLIFY_BASE_URL
-    if [ -z "$COOLIFY_BASE_URL" ]; then
-      echo -e "\033[31mPlease enter a valid Coolify Base URL!\033[0m"
-    else
-      break
-    fi
-  done
-
-  # Get the Coolify API Key
-  while true; do
-    read -p $'\033[33mEnter your Coolify API Key:\033[0m ' COOLIFY_API_KEY
-    if [ -z "$COOLIFY_API_KEY" ]; then
-      echo -e "\033[31mPlease enter a valid Coolify API Key!\033[0m"
-    else
-      break
-    fi
-  done
-  BEARER="Authorization: Bearer $COOLIFY_API_KEY"
-
-  test_call=$(get_coolify_version)
-  TEST_CALL_LOOP=0
-  echo
-  echo "Coolify Version: $test_call"
-  echo -e "If you can see the Coolify Version Number we can successfully connect!"
-  while true; do
-    read -p $'\033[31mCONFIRM:\033[33m Do you see the Version Number? [Y/n]:\033[0m ' TEST_CALL_CONTINUE
-    if [ "$TEST_CALL_CONTINUE" == "y" ]; then
-      break
-    elif [ "$TEST_CALL_CONTINUE" == "Y" ]; then
-      break
-    elif [ "$TEST_CALL_CONTINUE" == "yes" ]; then
-      break
-    elif [ "$TEST_CALL_CONTINUE" == "" ]; then
-      break
-    elif [ "$TEST_CALL_CONTINUE" == "n" ]; then
-      TEST_CALL_LOOP=1
-      break
-    elif [ "$CONTINUE" == "N" ]; then
-      TEST_CALL_LOOP=1
-      break
-    elif [ "$CONTINUE" == "no" ]; then
-      TEST_CALL_LOOP=1
-      break
-    fi
-  done
-
-  if [ "$TEST_CALL_LOOP" -eq 1 ]; then
-    echo
-    echo -e "\033[1;31m🛑 --- ERROR: 'COOLIFY_BASE_URL' and/or 'COOLIFY_API_KEY' not correctly configured! ---\033[0m"
-    echo
-    exit 1
+  if [ -z "$COOLIFY_BASE_URL" ]; then
+    while true; do
+      read -p $'\033[33mEnter your Coolify Base URL (e.g. https://coolify.server.com):\033[0m ' COOLIFY_BASE_URL
+      if [ -z "$COOLIFY_BASE_URL" ]; then
+        echo -e "\033[31mPlease enter a valid Coolify Base URL!\033[0m"
+      else
+        break
+      fi
+    done
+  else
+    echo -e "\033[33mCoolify Base URL found in ENV: \033[1;34m$COOLIFY_BASE_URL\033[0m"
   fi
 
+  # Get the Coolify API Key
+  if [ -z "$COOLIFY_API_KEY" ]; then
+    while true; do
+      read -p $'\033[33mEnter your Coolify API Key:\033[0m ' COOLIFY_API_KEY
+      if [ -z "$COOLIFY_API_KEY" ]; then
+        echo -e "\033[31mPlease enter a valid Coolify API Key!\033[0m"
+      else
+        break
+      fi
+    done
+  else
+    echo -e "\033[33mCoolify API Key found in ENV: \033[1;34m$COOLIFY_API_KEY\033[0m"
+  fi
+  BEARER="Authorization: Bearer $COOLIFY_API_KEY"
+
+  # Run a healthcheck to make sure Coolify is up and running
+  run_coolify_healthcheck
+  
   while [ $SETTINGS_CONFIRM -eq 0 ]; do # Get user inout and configure vars
     # Configure the Coolify Server, Project, and optional Github App Key
-    configure_server_project_key
+    configure_some_coolify_settings
     echo
 
     # TODO: This is where we should ask if user wants to setup a dB!
@@ -619,7 +625,29 @@ PORT={{BACK_PORT}}
 DATABASE_URL={{DATABASE_URL}}
 
 # JWT Secret for Wasp's Auth System
-JWT_SECRET={{AUTH_SECRET}}" > .env.coolify); then
+JWT_SECRET={{AUTH_SECRET}}
+
+# Coolify Platform Settings
+COOLIFY_API_KEY={{COOL_KEY}}
+COOLIFY_BASE_URL={{COOL_URL}}
+
+# Server and Project UUIDs for the Wasp App
+COOLIFY_SERVER_UUID={{COOL_SERVER_UUID}}
+COOLIFY_PROJECT_UUID={{COOL_PROJECT_UUID}}
+COOLIFY_ENVIRONMENT_NAME=\"production\"
+
+# Coolify Git Config
+GH_PRIVATE={{COOL_GIT_PRIVATE}}
+COOLIFY_GITHUB_APP_UUID={{COOL_GITHUB_APP_UUID}}
+COOLIFY_GIT_REPOSITORY={{COOL_GIT_REPO}}
+COOLIFY_GIT_BRANCH={{COOL_GIT_BRANCH}}
+COOLIFY_GIT_COMMIT_SHA=\"HEAD\"
+
+# Descriptions for the Frontend/Backend in the Coolify UI
+COOLIFY_CLIENT_DESCRIPTION={{COOL_CLIENT_DESCRIPTION}}
+COOLIFY_SERVER_DESCRIPTION={{COOL_SERVER_DESCRIPTION}}
+
+FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
     echo -e "\033[33m✅ --- Successfully created Coolify Environment Template file ---\033[0m"
     echo
   else
@@ -629,8 +657,15 @@ JWT_SECRET={{AUTH_SECRET}}" > .env.coolify); then
     exit 1
   fi
 
+  COOLIFY_GIT_REPOSITORY="repo"
+  COOLIFY_GIT_BRANCH="branch"
+  COOLIFY_CLIENT_DESCRIPTION='"Coolify Client"'
+  COOLIFY_SERVER_DESCRIPTION='"Coolify Server"'
+
+  COOLIFY_COOL_KEY=\"$COOLIFY_API_KEY\"
+
   # Replace the Env placeholders in `.coolify.env`
-  if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g" .env.coolify); then
+  if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{COOL_URL}}|$COOLIFY_BASE_URL|g; s~{{COOL_KEY}}~$COOLIFY_COOL_KEY~g; s|{{COOL_SERVER_UUID}}|$COOLIFY_SERVER_UUID|g; s|{{COOL_PROJECT_UUID}}|$COOLIFY_PROJECT_UUID|g; s|{{COOL_GITHUB_APP_UUID}}|$COOLIFY_GITHUB_APP_UUID|g; s|{{COOL_GIT_PRIVATE}}|$GH_PRIVATE|g; s|{{COOL_GIT_REPO}}|$COOLIFY_GIT_REPOSITORY|g; s|{{COOL_GIT_BRANCH}}|$COOLIFY_GIT_BRANCH|g; s|{{COOL_CLIENT_DESCRIPTION}}|$COOLIFY_CLIENT_DESCRIPTION|g; s|{{COOL_SERVER_DESCRIPTION}}|$COOLIFY_SERVER_DESCRIPTION|g" .env.coolify); then
     echo -e "\033[33m✅ --- Successfully configured Coolify Environment file with your chosen settings ---\033[0m"
     echo
   else
