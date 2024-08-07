@@ -419,9 +419,9 @@ configure_some_coolify_settings() {
   # Backend Description for the Coolify UI
   if [ -z "$COOLIFY_SERVER_DESCRIPTION" ]; then
     while true; do
-      read -p $'\033[33mEnter a Server App description for the Coolify UI (Default: "Wasp Frontend"):\033[0m ' COOLIFY_SERVER_DESCRIPTION
+      read -p $'\033[33mEnter a Server App description for the Coolify UI (Default: "Wasp Backend"):\033[0m ' COOLIFY_SERVER_DESCRIPTION
       if [ -z "$COOLIFY_SERVER_DESCRIPTION" ]; then
-        COOLIFY_SERVER_DESCRIPTION="Wasp Frontend"
+        COOLIFY_SERVER_DESCRIPTION="Wasp Backend"
         break
       else
         break
@@ -457,6 +457,313 @@ run_coolify_healthcheck() {
   elif [ "$test_call" == "\033[1;42m SUCCESS \033[0m" ]; then
     echo -e "\033[1;37mIf you can see this, we can successfully connect to Coolify!\033[0m"
   fi
+}
+
+# ------------------------------------------------------------------------------
+# CREATE PROJECTS AND DEPLOY DBS
+# ------------------------------------------------------------------------------
+create_projects_and_deploy_dbs() {
+  # DEFINE SERVER PAYLOADS
+  if [ $GH_PRIVATE -eq 0 ]; then
+    # Deploying from Public GitHub Repo
+    server_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$server_ports_exposes",
+  "build_pack": "$server_build_pack",
+  "description": "$server_description",
+  "domains": "$server_domains",
+  "base_directory": "$server_base_directory",
+  "instant_deploy": $server_instant_deploy
+}
+EOF
+)
+  elif [ $GH_PRIVATE -eq 1 ]; then
+    # Deploying from Private GitHub App
+    server_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "github_app_uuid": "$github_app_uuid",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$server_ports_exposes",
+  "build_pack": "$server_build_pack",
+  "description": "$server_description",
+  "domains": "$server_domains",
+  "base_directory": "$server_base_directory",
+  "instant_deploy": $server_instant_deploy
+}
+EOF
+)
+  fi
+
+  # DEFINE CLIENT PAYLOADS
+  if [ $GH_PRIVATE -eq 0 ]; then
+    # Deploying from Public GitHub Repo
+    client_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$client_ports_exposes",
+  "build_pack": "$client_build_pack",
+  "description": "$client_description",
+  "domains": "$client_domains",
+  "base_directory": "$client_base_directory",
+  "instant_deploy": $client_instant_deploy
+}
+EOF
+)
+  elif [ $GH_PRIVATE -eq 1 ]; then
+    # Deploying from Private GitHub App
+    client_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "github_app_uuid": "$github_app_uuid",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$client_ports_exposes",
+  "build_pack": "$client_build_pack",
+  "description": "$client_description",
+  "domains": "$client_domains",
+  "base_directory": "$client_base_directory",
+  "instant_deploy": $client_instant_deploy
+}
+EOF
+)
+  fi
+
+  # Check if we need to setup a dB
+  if [ $NEED_DB_SETUP -eq 1 ]; then
+    # Production db payload
+    create_prod_db_payload=$(cat <<EOF
+{
+  "server_uuid": "$server_uuid",
+  "project_uuid": "$project_uuid",
+  "environment_name": "$environment_name",
+  "description": "Production dB",
+  "is_public": false,
+  "instant_deploy": true
+}
+EOF
+)
+  fi
+
+  # Similarly, do we need a dev dB?
+  if [ $NEED_DEV_DB_SETUP -eq 1 ]; then
+    # Development db payload
+    echo -e "NEED_DEV_DB_SETUP: TODO remember to get public_port from the user!!!"
+    create_dev_db_payload=$(cat <<EOF
+{
+  "server_uuid": "$server_uuid",
+  "project_uuid": "$project_uuid",
+  "environment_name": "$environment_name",
+  "description": "Development dB",
+  "is_public": true,
+  "public_port": 7765,
+  "instant_deploy": true
+}
+EOF
+)
+  fi
+
+  # Setup the Server on Coolify
+  if [ $GH_PRIVATE -eq 0 ]; then
+    # Deploying from Public GitHub Repo
+    coolify_server_return=$(curl -s --request POST \
+      --url $COOLIFY_BASE_URL/api/v1/applications/public \
+      --header "$BEARER" \
+      --header 'Content-Type: application/json' \
+      -d "$server_payload")
+  elif [ $GH_PRIVATE -eq 1 ]; then
+    # Deploying from Private GitHub App
+    coolify_server_return=$(curl -s --request POST \
+      --url $COOLIFY_BASE_URL/api/v1/applications/private-github-app \
+      --header "$BEARER" \
+      --header 'Content-Type: application/json' \
+      -d "$server_payload")
+  fi
+  configured_server_uuid=$(jq -r ".uuid" <<< "$coolify_server_return")
+  possible_server_error=$(jq -r ".error" <<< "$coolify_server_return")
+  possible_server_msg=$(jq -r ".message" <<< "$coolify_server_return")
+  echo
+  if [ ! "$possible_server_error" == "null" ]; then
+    echo -e "$server_payload"
+    echo
+    echo -e "$possible_server_error"
+    echo -e "$possible_server_msg"
+    echo
+    echo -e "\033[1;31m💀 --- COOLIFY ERROR: Backend App Setup Failed! See above for possible details... ---\033[0m"
+    echo
+    exit 1
+  else
+    if ! (echo "$coolify_server_return" | jq . ); then
+      echo -e "$coolify_server_return"
+      echo
+      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not create new Server App! See above for possible details... ---\033[0m"
+      echo
+      exit 1
+    else
+      echo -e "\033[33m✅ --- New SERVER App Successfully Created on Coolify! ---\033[0m"
+      echo
+    fi
+  fi
+
+  echo "WASP_WEB_CLIENT_URL: $WASP_WEB_CLIENT_URL"
+  echo "WASP_SERVER_URL: $WASP_SERVER_URL"
+  echo "PORT: $PORT"
+  echo "JWT_SECRET: $JWT_SECRET"
+
+  # Config the Server Env Vars
+  set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL"
+  set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL"
+  set_server_env "PORT" "$PORT"
+  set_server_env "JWT_SECRET" "$JWT_SECRET"
+
+  # And again for the Preview Deploys
+  set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL" true
+  set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL" true
+  set_server_env "PORT" "$PORT" true
+  set_server_env "JWT_SECRET" "$JWT_SECRET" true
+
+  # Next, setup the Client
+  if [ $GH_PRIVATE -eq 0 ]; then
+    # Deploying from Public GitHub Repo
+    coolify_client_return=$(curl -s --request POST \
+      --url $COOLIFY_BASE_URL/api/v1/applications/public \
+      --header "$BEARER" \
+      --header 'Content-Type: application/json' \
+      -d "$client_payload")
+  elif [ $GH_PRIVATE -eq 1 ]; then
+    # Deploying from Private GitHub App
+    coolify_client_return=$(curl -s --request POST \
+      --url $COOLIFY_BASE_URL/api/v1/applications/private-github-app \
+      --header "$BEARER" \
+      --header 'Content-Type: application/json' \
+      -d "$client_payload")
+  fi
+  configured_client_uuid=$(jq -r ".uuid" <<< "$coolify_client_return")
+  possible_client_error=$(jq -r ".error" <<< "$coolify_client_return")
+  possible_client_message=$(jq -r ".message" <<< "$coolify_client_return")
+  echo
+  if [ ! "$possible_client_error" == "null" ]; then
+    echo -e "$client_payload"
+    echo
+    echo -e "$possible_client_error"
+    echo -e "$possible_client_message"
+    echo
+    echo -e "\033[1;31m💀 --- COOLIFY ERROR: Frontend App Setup Failed! See above for possible details... ---\033[0m"
+    echo
+    exit 1
+  else
+    if ! (echo "$coolify_client_return" | jq . ); then
+      echo -e "$coolify_client_return"
+      echo
+      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not create new Client App! See above for possible details... ---\033[0m"
+      echo
+      exit 1
+    else
+      echo -e "\033[33m✅ --- New CLIENT App Successfully Created on Coolify! ---\033[0m"
+      echo
+    fi
+  fi
+
+  # Create the Production Database and bring it online
+  if [ $NEED_DB_SETUP -eq 1 ]; then
+    create_prod_db_return=$(curl -s --request POST \
+      --url $COOLIFY_BASE_URL/api/v1/databases/postgresql \
+      --header "$BEARER" \
+      --header 'Content-Type: application/json' \
+      -d "$create_prod_db_payload")
+    echo
+    if ! (echo "$create_prod_db_return" | jq . ); then
+      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Production Database Setup Failed! ---\033[0m"
+      echo
+      exit 1
+    else
+      echo -e "\033[33m✅ --- Production Database Created and Online! ---\033[0m"
+      echo
+    fi
+    prod_db_url=$(jq -r ".internal_db_url" <<< "$create_prod_db_return")
+    WASP_DATABASE_URL="$prod_db_url"
+    echo "PROD DB URL: $WASP_DATABASE_URL"
+  fi
+
+  # Create the Development Database and get it up and running
+  if [ $NEED_DEV_DB_SETUP -eq 1 ]; then
+    create_dev_db_return=$(curl -s --request POST \
+      --url $COOLIFY_BASE_URL/api/v1/databases/postgresql \
+      --header "$BEARER" \
+      --header 'Content-Type: application/json' \
+      -d "$create_dev_db_payload")
+    echo
+    if ! (echo "$create_dev_db_return" | jq . ); then
+      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Development Database Setup Failed! ---\033[0m"
+      echo
+      exit 1
+    else
+      echo -e "\033[33m✅ --- Development Database Created and Online! ---\033[0m"
+      echo
+    fi
+    dev_db_url=$(jq -r ".external_db_url" <<< "$create_dev_db_return")
+    DEV_DATABASE_URL="$dev_db_url"
+    echo "DEV DB URL: $DEV_DATABASE_URL"
+  fi
+
+  # Set the server env vars for the Production db
+  DATABASE_URL="$WASP_DATABASE_URL"
+  set_server_env "DATABASE_URL" "$DATABASE_URL"
+  set_server_env "DATABASE_URL" "$DATABASE_URL" true
+  
+  return 0
+}
+
+# ------------------------------------------------------------------------------
+# SET PAYLOAD VALUES FOR SERVER & CLIENT
+# ------------------------------------------------------------------------------
+set_payload_values_for_server_client() {
+  project_uuid="$COOLIFY_PROJECT_UUID"
+  server_uuid="$COOLIFY_SERVER_UUID"
+  COOLIFY_ENVIRONMENT_NAME=${COOLIFY_ENVIRONMENT_NAME:-"production"}
+  environment_name="$COOLIFY_ENVIRONMENT_NAME"
+  if [ $GH_PRIVATE -eq 1 ]; then
+    github_app_uuid="$COOLIFY_GITHUB_APP_UUID"
+  fi
+
+  # Set Github variables
+  git_repository="$COOLIFY_GIT_REPOSITORY"
+  git_branch="$COOLIFY_GIT_BRANCH"
+  git_commit_sha="$COOLIFY_GIT_COMMIT_SHA"
+
+  # Set client deployment variables
+  client_ports_exposes="80"
+  client_build_pack="static"
+  client_description="$COOLIFY_CLIENT_DESCRIPTION"
+  client_domains="$WASP_WEB_CLIENT_URL"
+  client_base_directory="/deploy/client"
+  client_instant_deploy="false"
+
+  # And for the server, too
+  server_ports_exposes="$PORT"
+  server_build_pack="dockerfile"
+  server_description="$COOLIFY_SERVER_DESCRIPTION"
+  server_domains="$REACT_APP_API_URL"
+  server_base_directory="/deploy/server"
+  server_instant_deploy="false"
 }
 
 # Detect if the `jq` command line tool is installed and available
@@ -613,7 +920,7 @@ else # Configure our `cool-deploy`` script!
     
     # Now ask the user if they want to setup a development dB
     while true; do
-      read -p $'\033[33mWill you be needding a Development dB deployedon Coolify? [y/n]:\033[0m ' setup_dev_dbs
+      read -p $'\033[33mWill you be needing a Development dB deployed on Coolify? [y/n]:\033[0m ' setup_dev_dbs
       if [ "$setup_dev_dbs" == "y" ]; then
         NEED_DEV_DB_SETUP=1
         break
@@ -749,39 +1056,10 @@ else # Configure our `cool-deploy`` script!
 
   cd $WASP_PROJECT_DIR
 
-  # Check if we need to setup a dB
-  if [ $NEED_DB_SETUP -eq 1 ]; then
-    # Production db payload
-  create_prod_db_payload=$(cat <<EOF
-{
-  "server_uuid": "$COOLIFY_SERVER_UUID",
-  "project_uuid": "$COOLIFY_PROJECT_UUID",
-  "environment_name": "$COOLIFY_ENVIRONMENT_NAME",
-  "description": "Production dB",
-  "is_public": false,
-  "instant_deploy": true
-}
-EOF
-)
-  fi
-
-  # Similarly, do we need a dev dB?
-  if [ $NEED_DEV_DB_SETUP -eq 1 ]; then
-    # Development db payload
-    echo -e "NEED_DEV_DB_SETUP: TODO remember to get public_port from the user!!!"
-    create_dev_db_payload=$(cat <<EOF
-{
-  "server_uuid": "$COOLIFY_SERVER_UUID",
-  "project_uuid": "$COOLIFY_PROJECT_UUID",
-  "environment_name": "$COOLIFY_ENVIRONMENT_NAME",
-  "description": "Development dB",
-  "is_public": true,
-  "public_port": 7765,
-  "instant_deploy": true
-}
-EOF
-)
-  fi
+  PORT=$WASP_SERVER_PORT
+  JWT_SECRET=$WASP_JWT_SECRET
+  set_payload_values_for_server_client
+  create_projects_and_deploy_dbs
 
   cd $WASP_PROJECT_DIR
 
@@ -947,34 +1225,7 @@ cd $WASP_PROJECT_DIR
 
 # Set all the different Coolify variables and settings for deployment
 COOLIFY_VERSION=$(get_coolify_version)
-project_uuid="$COOLIFY_PROJECT_UUID"
-server_uuid="$COOLIFY_SERVER_UUID"
-COOLIFY_ENVIRONMENT_NAME=${COOLIFY_ENVIRONMENT_NAME:-"production"}
-environment_name="$COOLIFY_ENVIRONMENT_NAME"
-if [ $GH_PRIVATE -eq 1 ]; then
-  github_app_uuid="$COOLIFY_GITHUB_APP_UUID"
-fi
-
-# Set Github variables
-git_repository="$COOLIFY_GIT_REPOSITORY"
-git_branch="$COOLIFY_GIT_BRANCH"
-git_commit_sha="$COOLIFY_GIT_COMMIT_SHA"
-
-# Set client deployment variables
-client_ports_exposes="80"
-client_build_pack="static"
-client_description="$COOLIFY_CLIENT_DESCRIPTION"
-client_domains="$WASP_WEB_CLIENT_URL"
-client_base_directory="/deploy/client"
-client_instant_deploy="false"
-
-# And for the server, too
-server_ports_exposes="$PORT"
-server_build_pack="dockerfile"
-server_description="$COOLIFY_SERVER_DESCRIPTION"
-server_domains="$REACT_APP_API_URL"
-server_base_directory="/deploy/server"
-server_instant_deploy="false"
+set_payload_values_for_server_client
 
 # Show the relevant information about the deployment and ask to confirm
 echo -e "\033[1;36m🤖 --- WASP PROJECT & SERVER DEPLOYMENT INFO...\033[0m"
