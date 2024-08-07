@@ -4,9 +4,12 @@
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PARENT_DIR=$(dirname "$WASP_PROJECT_DIR")
 FIRST_TIME_RUN=0
+NEED_DB_SETUP=0
+NEED_DEV_DB_SETUP=0
 BEARER=""
-COOLIFY_GITHUB_APP_UUID=0
 GH_PRIVATE=0
+COOLIFY_GITHUB_APP_UUID=0
+COOLIFY_GIT_COMMIT_SHA="HEAD"
 
 # Deploy directories
 DEPLOY_DIR=$WASP_PROJECT_DIR/deploy
@@ -263,6 +266,24 @@ configure_some_coolify_settings() {
       do_header=1
     fi
   fi
+  if [ -z "$COOLIFY_GIT_REPOSITORY" ]; then
+    do_header=1
+  fi
+  if [ -z "$COOLIFY_GIT_BRANCH" ]; then
+    do_header=1
+  fi
+  if [ -z "$COOLIFY_CLIENT_DESCRIPTION" ]; then
+    do_header=1
+  fi
+  if [ -z "$COOLIFY_SERVER_DESCRIPTION" ]; then
+    do_header=1
+  fi
+  if [ -z "$COOLIFY_GIT_COMMIT_SHA" ]; then
+    COOLIFY_GIT_COMMIT_SHA="HEAD"
+  fi
+  if [ -z "$COOLIFY_ENVIRONMENT_NAME" ]; then
+    COOLIFY_ENVIRONMENT_NAME="production"
+  fi
 
   if [ $do_header -eq 1 ]; then
     echo -e "\033[1;32m🤖 --- CONFIGURING SOME COOLIFY SETTINGS & VARIABLES... ---\033[0m"
@@ -351,6 +372,61 @@ configure_some_coolify_settings() {
         fi
       done
     fi
+  fi
+
+  # Let's get the Git repository...
+  if [ -z "$COOLIFY_GIT_REPOSITORY" ]; then
+    while true; do
+      if [ $GH_PRIVATE -eq 1 ]; then
+        read -p $'\033[33mEnter the Github App Repository (e.g. username/my-wasp-project):\033[0m ' COOLIFY_GIT_REPOSITORY
+      else
+        read -p $'\033[33mEnter the Git Repository URL (e.g. https://github.com/username/my-wasp-project):\033[0m ' COOLIFY_GIT_REPOSITORY
+      fi
+      if [ -z "$COOLIFY_GIT_REPOSITORY" ]; then
+        echo -e "\033[31mPlease enter a valid Git Repository URL!\033[0m"
+      else
+        break
+      fi
+    done
+  fi  
+
+  # ...and its branch
+  if [ -z "$COOLIFY_GIT_BRANCH" ]; then
+    while true; do
+      read -p $'\033[33mEnter the Git Branch (Default: main):\033[0m ' COOLIFY_GIT_BRANCH
+      if [ -z "$COOLIFY_GIT_BRANCH" ]; then
+        COOLIFY_GIT_BRANCH="main"
+        break
+      else
+        break
+      fi
+    done
+  fi
+
+  # Frontend Description for the Coolify UI
+  if [ -z "$COOLIFY_CLIENT_DESCRIPTION" ]; then
+    while true; do
+      read -p $'\033[33mEnter a Client App description for the Coolify UI (Default: "Wasp Frontend"):\033[0m ' COOLIFY_CLIENT_DESCRIPTION
+      if [ -z "$COOLIFY_CLIENT_DESCRIPTION" ]; then
+        COOLIFY_CLIENT_DESCRIPTION="Wasp Frontend"
+        break
+      else
+        break
+      fi
+    done
+  fi
+
+  # Backend Description for the Coolify UI
+  if [ -z "$COOLIFY_SERVER_DESCRIPTION" ]; then
+    while true; do
+      read -p $'\033[33mEnter a Server App description for the Coolify UI (Default: "Wasp Frontend"):\033[0m ' COOLIFY_SERVER_DESCRIPTION
+      if [ -z "$COOLIFY_SERVER_DESCRIPTION" ]; then
+        COOLIFY_SERVER_DESCRIPTION="Wasp Frontend"
+        break
+      else
+        break
+      fi
+    done
   fi
   return 0
 }
@@ -507,14 +583,57 @@ else # Configure our `cool-deploy`` script!
   run_coolify_healthcheck
   
   while [ $SETTINGS_CONFIRM -eq 0 ]; do # Get user inout and configure vars
-    # Configure the Coolify Server, Project, and optional Github App Key
+    # Configure the Coolify stuff
     configure_some_coolify_settings
     echo
 
-    # TODO: This is where we should ask if user wants to setup a dB!
-    echo -e "!!!!!!!!!!!"
-    echo "TODO: THIS IS WHERE WE WANT TO ASK USER ABOUT dB SETUP!!!"
-    echo -e "!!!!!!!!!!!"
+    # Ask the user if they want to setup a dB
+    while true; do
+      read -p $'\033[33mWould you like to deploy a Production dB on Coolify? [y/n]:\033[0m ' setup_dbs
+      if [ "$setup_dbs" == "y" ]; then
+        NEED_DB_SETUP=1
+        break
+      elif [ "$setup_dbs" == "Y" ]; then
+        NEED_DB_SETUP=1
+        break
+      elif [ "$setup_dbs" == "yes" ]; then
+        NEED_DB_SETUP=1
+        break
+      elif [ "$setup_dbs" == "n" ]; then
+        NEED_DB_SETUP=0
+        break
+      elif [ "$setup_dbs" == "N" ]; then
+        NEED_DB_SETUP=0
+        break
+      elif [ "$setup_dbs" == "no" ]; then
+        NEED_DB_SETUP=0
+        break
+      fi
+    done
+    
+    # Now ask the user if they want to setup a development dB
+    while true; do
+      read -p $'\033[33mWill you be needding a Development dB deployedon Coolify? [y/n]:\033[0m ' setup_dev_dbs
+      if [ "$setup_dev_dbs" == "y" ]; then
+        NEED_DEV_DB_SETUP=1
+        break
+      elif [ "$setup_dev_dbs" == "Y" ]; then
+        NEED_DEV_DB_SETUP=1
+        break
+      elif [ "$setup_dev_dbs" == "yes" ]; then
+        NEED_DEV_DB_SETUP=1
+        break
+      elif [ "$setup_dev_dbs" == "N" ]; then
+        NEED_DEV_DB_SETUP=0
+        break
+      elif [ "$setup_dev_dbs" == "n" ]; then
+        NEED_DEV_DB_SETUP=0
+        break
+      elif [ "$setup_dev_dbs" == "no" ]; then
+        NEED_DEV_DB_SETUP=0
+        break
+      fi
+    done
     echo
     
     # Get user input for the remaining variables:
@@ -537,15 +656,26 @@ else # Configure our `cool-deploy`` script!
     done
 
     read -p $'\033[33mWhat port should the server run on? (default 3000):\033[0m ' WASP_SERVER_PORT
-    # TODO: Ask if you need to setup a dB first...
-    read -p $'\033[33mDatabase URL (or, hit enter to leave blank for now):\033[0m ' WASP_DATABASE_URL
     read -p $'\033[33mJWT Secret Key (or, hit enter to generate):\033[0m ' WASP_JWT_SECRET
+
+    if [ $NEED_DB_SETUP -eq 1 ]; then
+      echo -e "\033[1;33mDatabase URI will be configured after Production dB is deployed on Coolify\033[0m "
+    else
+      while true; do
+        read -p $'\033[33mProduction Database URI:\033[0m ' WASP_DATABASE_URL
+        if [ -z "$WASP_DATABASE_URL" ]; then
+          echo -e "\033[31mPlease enter a valid Database URI!\033[0m"
+        else
+          break
+        fi
+      done
+    fi # End of getting the Database URI
     
     # Finalize the variables' content
     REACT_APP_API_URL=$WASP_SERVER_URL
     WASP_SERVER_PORT=${WASP_SERVER_PORT:-3000}
     WASP_JWT_SECRET=${WASP_JWT_SECRET:-$(openssl rand -hex 32)}
-    WASP_DATABASE_URL=${WASP_DATABASE_URL:-postgres://}
+    WASP_DATABASE_URL=${WASP_DATABASE_URL:-0}
 
     # Print variables and confirm selections
     echo
@@ -562,7 +692,11 @@ else # Configure our `cool-deploy`` script!
     echo -e "\033[1;34mWASP_WEB_CLIENT_URL\033[0m=$WASP_WEB_CLIENT_URL"
     echo -e "\033[1;34mWASP_SERVER_URL\033[0m=$REACT_APP_API_URL"
     echo -e "\033[1;34mWASP_SERVER_PORT\033[0m=$WASP_SERVER_PORT"
-    echo -e "\033[1;34mDATABASE_URL\033[0m=$WASP_DATABASE_URL"
+    if [ $NEED_DB_SETUP -eq 0 ]; then
+      echo -e "\033[1;34mDATABASE_URL\033[0m=$WASP_DATABASE_URL"
+    else
+      echo -e "\033[1;34mDATABASE_URL\033[0m=[TBD after dB deployment]"
+    fi
     echo -e "\033[1;34mJWT_SECRET\033[0m=$WASP_JWT_SECRET"
     echo
     echo -e "\033[1;34mCLIENT_DEPLOY_DIR\033[0m=$CLIENT_DEPLOY_DIR"
@@ -596,13 +730,15 @@ else # Configure our `cool-deploy`` script!
       echo -e "\033[31m🛑 --- Settings not configured! Trying again... ---\033[0m"
       COOLIFY_PROJECT_UUID=""
       COOLIFY_SERVER_UUID=""
-      # COOLIFY_SERVER_DESCRIPTION=""
-      # COOLIFY_CLIENT_DESCRIPTION=""
-      # COOLIFY_GIT_REPOSITORY=""
-      # COOLIFY_GIT_BRANCH=""
-      # COOLIFY_GIT_COMMIT_SHA=""
+      COOLIFY_SERVER_DESCRIPTION=""
+      COOLIFY_CLIENT_DESCRIPTION=""
+      COOLIFY_GIT_REPOSITORY=""
+      COOLIFY_GIT_BRANCH=""
+      COOLIFY_GIT_COMMIT_SHA="HEAD"
+      NEED_DB_SETUP=0
+      NEED_DEV_DB_SETUP=0
       if [ $GH_PRIVATE -eq 1 ]; then
-        COOLIFY_GITHUB_APP_UUID=""
+        COOLIFY_GITHUB_APP_UUID=0
       fi
     fi
   done # End of settings config loop
@@ -610,6 +746,42 @@ else # Configure our `cool-deploy`` script!
   echo
   echo -e "\033[33m✅ --- Configured settings for \`cool-deploy.sh\`! ---\033[0m"
   echo
+
+  cd $WASP_PROJECT_DIR
+
+  # Check if we need to setup a dB
+  if [ $NEED_DB_SETUP -eq 1 ]; then
+    # Production db payload
+  create_prod_db_payload=$(cat <<EOF
+{
+  "server_uuid": "$COOLIFY_SERVER_UUID",
+  "project_uuid": "$COOLIFY_PROJECT_UUID",
+  "environment_name": "$COOLIFY_ENVIRONMENT_NAME",
+  "description": "Production dB",
+  "is_public": false,
+  "instant_deploy": true
+}
+EOF
+)
+  fi
+
+  # Similarly, do we need a dev dB?
+  if [ $NEED_DEV_DB_SETUP -eq 1 ]; then
+    # Development db payload
+    echo -e "NEED_DEV_DB_SETUP: TODO remember to get public_port from the user!!!"
+    create_dev_db_payload=$(cat <<EOF
+{
+  "server_uuid": "$COOLIFY_SERVER_UUID",
+  "project_uuid": "$COOLIFY_PROJECT_UUID",
+  "environment_name": "$COOLIFY_ENVIRONMENT_NAME",
+  "description": "Development dB",
+  "is_public": true,
+  "public_port": 7765,
+  "instant_deploy": true
+}
+EOF
+)
+  fi
 
   cd $WASP_PROJECT_DIR
 
@@ -634,7 +806,7 @@ COOLIFY_BASE_URL={{COOL_URL}}
 # Server and Project UUIDs for the Wasp App
 COOLIFY_SERVER_UUID={{COOL_SERVER_UUID}}
 COOLIFY_PROJECT_UUID={{COOL_PROJECT_UUID}}
-COOLIFY_ENVIRONMENT_NAME=\"production\"
+COOLIFY_ENVIRONMENT_NAME={{COOL_ENVIRONMENT_NAME}}
 
 # Coolify Git Config
 GH_PRIVATE={{COOL_GIT_PRIVATE}}
@@ -657,15 +829,14 @@ FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
     exit 1
   fi
 
-  COOLIFY_GIT_REPOSITORY="repo"
-  COOLIFY_GIT_BRANCH="branch"
-  COOLIFY_CLIENT_DESCRIPTION='"Coolify Client"'
-  COOLIFY_SERVER_DESCRIPTION='"Coolify Server"'
-
+  # Correctly format the literals for the `sed` command
   COOLIFY_COOL_KEY=\"$COOLIFY_API_KEY\"
+  COOL_ENVIRONMENT_NAME=\"$COOLIFY_ENVIRONMENT_NAME\"
+  COOL_SERVER_DESCRIPTION=\"$COOLIFY_SERVER_DESCRIPTION\"
+  COOL_CLIENT_DESCRIPTION=\"$COOLIFY_CLIENT_DESCRIPTION\"
 
   # Replace the Env placeholders in `.coolify.env`
-  if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{COOL_URL}}|$COOLIFY_BASE_URL|g; s~{{COOL_KEY}}~$COOLIFY_COOL_KEY~g; s|{{COOL_SERVER_UUID}}|$COOLIFY_SERVER_UUID|g; s|{{COOL_PROJECT_UUID}}|$COOLIFY_PROJECT_UUID|g; s|{{COOL_GITHUB_APP_UUID}}|$COOLIFY_GITHUB_APP_UUID|g; s|{{COOL_GIT_PRIVATE}}|$GH_PRIVATE|g; s|{{COOL_GIT_REPO}}|$COOLIFY_GIT_REPOSITORY|g; s|{{COOL_GIT_BRANCH}}|$COOLIFY_GIT_BRANCH|g; s|{{COOL_CLIENT_DESCRIPTION}}|$COOLIFY_CLIENT_DESCRIPTION|g; s|{{COOL_SERVER_DESCRIPTION}}|$COOLIFY_SERVER_DESCRIPTION|g" .env.coolify); then
+  if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{COOL_URL}}|$COOLIFY_BASE_URL|g; s~{{COOL_KEY}}~$COOLIFY_COOL_KEY~g; s|{{COOL_SERVER_UUID}}|$COOLIFY_SERVER_UUID|g; s|{{COOL_PROJECT_UUID}}|$COOLIFY_PROJECT_UUID|g; s|{{COOL_ENVIRONMENT_NAME}}|$COOL_ENVIRONMENT_NAME|g; s|{{COOL_GITHUB_APP_UUID}}|$COOLIFY_GITHUB_APP_UUID|g; s|{{COOL_GIT_PRIVATE}}|$GH_PRIVATE|g; s|{{COOL_GIT_REPO}}|$COOLIFY_GIT_REPOSITORY|g; s|{{COOL_GIT_BRANCH}}|$COOLIFY_GIT_BRANCH|g; s|{{COOL_CLIENT_DESCRIPTION}}|$COOL_CLIENT_DESCRIPTION|g; s|{{COOL_SERVER_DESCRIPTION}}|$COOL_SERVER_DESCRIPTION|g" .env.coolify); then
     echo -e "\033[33m✅ --- Successfully configured Coolify Environment file with your chosen settings ---\033[0m"
     echo
   else
@@ -774,37 +945,38 @@ fi
 
 cd $WASP_PROJECT_DIR
 
+# Set all the different Coolify variables and settings for deployment
 COOLIFY_VERSION=$(get_coolify_version)
 project_uuid="$COOLIFY_PROJECT_UUID"
 server_uuid="$COOLIFY_SERVER_UUID"
-COOLIFY_ENVIRONMENT_NAME=${COOLIFY_ENVIRONMENT_NAME:-production}
+COOLIFY_ENVIRONMENT_NAME=${COOLIFY_ENVIRONMENT_NAME:-"production"}
 environment_name="$COOLIFY_ENVIRONMENT_NAME"
 if [ $GH_PRIVATE -eq 1 ]; then
   github_app_uuid="$COOLIFY_GITHUB_APP_UUID"
 fi
 
 # Set Github variables
-# TODO: grab these values from the user!
-# git_repository="tjr214/wasp-todo-demo-app"
-git_repository="$COOLIFY_GIT_REPOSITORY" # TODO: grab these values from the user!
-git_branch="$COOLIFY_GIT_BRANCH" # TODO: grab these values from the user!
-git_commit_sha="$COOLIFY_GIT_COMMIT_SHA" # TODO: grab these values from the user!
+git_repository="$COOLIFY_GIT_REPOSITORY"
+git_branch="$COOLIFY_GIT_BRANCH"
+git_commit_sha="$COOLIFY_GIT_COMMIT_SHA"
 
-# Set Coolify deployment variables
+# Set client deployment variables
 client_ports_exposes="80"
 client_build_pack="static"
-client_description="$COOLIFY_CLIENT_DESCRIPTION" # TODO: grab these values from the user!
+client_description="$COOLIFY_CLIENT_DESCRIPTION"
 client_domains="$WASP_WEB_CLIENT_URL"
 client_base_directory="/deploy/client"
 client_instant_deploy="false"
 
+# And for the server, too
 server_ports_exposes="$PORT"
 server_build_pack="dockerfile"
-server_description="$COOLIFY_SERVER_DESCRIPTION" # TODO: grab these values from the user!
+server_description="$COOLIFY_SERVER_DESCRIPTION"
 server_domains="$REACT_APP_API_URL"
 server_base_directory="/deploy/server"
 server_instant_deploy="false"
 
+# Show the relevant information about the deployment and ask to confirm
 echo -e "\033[1;36m🤖 --- WASP PROJECT & SERVER DEPLOYMENT INFO...\033[0m"
 echo
 
@@ -814,15 +986,16 @@ echo -e "\033[1;33m - Running on Wasp:\033[0m \033[31m$WASP_VERSION\033[0m"
 echo -e "\033[1;33m - Coolify Version:\033[0m \033[31m$COOLIFY_VERSION\033[0m"
 echo -e "\033[1;33m - Coolify Server UUID:\033[0m \033[32m$server_uuid\033[0m"
 echo -e "\033[1;33m - Coolify Project UUID:\033[0m \033[32m$project_uuid\033[0m"
-echo -e "\033[1;33m - Coolify Environment Name:\033[0m \033[31m$environment_name\033[0m"
+echo -e "\033[1;33m - Coolify Environment Name:\033[0m \033[32m$environment_name\033[0m"
 if [ $GH_PRIVATE -eq 1 ]; then
-  echo -e "\033[1;33m - Coolify is using Github App Key:\033[0m \033[32m$github_app_uuid\033[0m"
+  echo -e "\033[1;33m - Using Github App Key:\033[0m \033[32m$github_app_uuid\033[0m"
 fi
+echo -e "\033[1;33m - Database URI:\033[0m \033[31m$DATABASE_URL\033[0m"
 echo -e "\033[1;33m - Local Project Directory:\033[0m $WASP_PROJECT_DIR"
 echo -e "\033[1;33m - Local Client Directory:\033[0m $CLIENT_DEPLOY_DIR"
 echo -e "\033[1;33m - Local Server Directory:\033[0m $SERVER_DEPLOY_DIR"
-echo -e "\033[1;33m - Client URL:\033[0m \033[34m$client_domains\033[0m"
-echo -e "\033[1;33m - Server URL:\033[0m \033[34m$server_domains\033[0m"
+echo -e "\033[1;33m - Client URL:\033[0m \033[34m$client_domains:$client_ports_exposes\033[0m"
+echo -e "\033[1;33m - Server URL:\033[0m \033[34m$server_domains:$server_ports_exposes\033[0m"
 echo -e "\033[1;33m - JWT Secret:\033[0m \033[35m$JWT_SECRET\033[0m"
 echo
 
@@ -869,6 +1042,8 @@ start_time=$(date +%s)
 # TODO: From `api-test.sh`
 echo "HERE IS WHERE WE WOULD BUILD THE PROJECT AND PUSH IT TO GIT!"
 # ------------------------------------------------------------------------------
+
+exit 1
 
 # Begin Deployment Process!
 cd $WASP_PROJECT_DIR
