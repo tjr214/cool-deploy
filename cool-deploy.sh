@@ -566,7 +566,6 @@ EOF
   # Similarly, do we need a dev dB?
   if [ $NEED_DEV_DB_SETUP -eq 1 ]; then
     # Development db payload
-    echo -e "NEED_DEV_DB_SETUP: TODO remember to get public_port from the user!!!"
     create_dev_db_payload=$(cat <<EOF
 {
   "server_uuid": "$server_uuid",
@@ -574,12 +573,15 @@ EOF
   "environment_name": "$environment_name",
   "description": "Development dB",
   "is_public": true,
-  "public_port": 7765,
+  "public_port": $dev_db_port,
   "instant_deploy": true
 }
 EOF
 )
   fi
+
+  echo -e "\033[1;32m🤖 --- SETTING UP & CONFIGURING COOLIFY APPS for FRONTEND and BACKEND... ---\033[0m"
+  echo
 
   # Setup the Server on Coolify
   if [ $GH_PRIVATE -eq 0 ]; then
@@ -600,7 +602,7 @@ EOF
   configured_server_uuid=$(jq -r ".uuid" <<< "$coolify_server_return")
   possible_server_error=$(jq -r ".error" <<< "$coolify_server_return")
   possible_server_msg=$(jq -r ".message" <<< "$coolify_server_return")
-  echo
+  possible_server_uuid=$(jq -r ".uuid" <<< "$coolify_server_return")
   if [ ! "$possible_server_error" == "null" ]; then
     echo -e "$server_payload"
     echo
@@ -611,34 +613,19 @@ EOF
     echo
     exit 1
   else
-    if ! (echo "$coolify_server_return" | jq . ); then
-      echo -e "$coolify_server_return"
+    if [ "$possible_server_uuid" == "null" ]; then # If the UUID is null, we can assume the setup failed
+      echo -e "$coolify_server_return" # May not even be JSON, print it out
       echo
       echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not create new Server App! See above for possible details... ---\033[0m"
       echo
       exit 1
-    else
+    else # If we got here, we can assume a successful setup
+      echo -e "- SERVER UUID: $possible_server_uuid"
+      echo
       echo -e "\033[33m✅ --- New SERVER App Successfully Created on Coolify! ---\033[0m"
       echo
     fi
   fi
-
-  echo "WASP_WEB_CLIENT_URL: $WASP_WEB_CLIENT_URL"
-  echo "WASP_SERVER_URL: $WASP_SERVER_URL"
-  echo "PORT: $PORT"
-  echo "JWT_SECRET: $JWT_SECRET"
-
-  # Config the Server Env Vars
-  set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL"
-  set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL"
-  set_server_env "PORT" "$PORT"
-  set_server_env "JWT_SECRET" "$JWT_SECRET"
-
-  # And again for the Preview Deploys
-  set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL" true
-  set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL" true
-  set_server_env "PORT" "$PORT" true
-  set_server_env "JWT_SECRET" "$JWT_SECRET" true
 
   # Next, setup the Client
   if [ $GH_PRIVATE -eq 0 ]; then
@@ -659,7 +646,7 @@ EOF
   configured_client_uuid=$(jq -r ".uuid" <<< "$coolify_client_return")
   possible_client_error=$(jq -r ".error" <<< "$coolify_client_return")
   possible_client_message=$(jq -r ".message" <<< "$coolify_client_return")
-  echo
+  possible_client_uuid=$(jq -r ".uuid" <<< "$coolify_client_return")
   if [ ! "$possible_client_error" == "null" ]; then
     echo -e "$client_payload"
     echo
@@ -670,16 +657,31 @@ EOF
     echo
     exit 1
   else
-    if ! (echo "$coolify_client_return" | jq . ); then
-      echo -e "$coolify_client_return"
+    if [ "$possible_client_uuid" == "null" ]; then # If the UUID is null, we can assume the setup failed
+      echo -e "$coolify_client_return" # May not even be JSON, print it out
       echo
       echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not create new Client App! See above for possible details... ---\033[0m"
       echo
       exit 1
     else
+      echo -e "- CLIENT UUID: $possible_client_uuid"
+      echo
       echo -e "\033[33m✅ --- New CLIENT App Successfully Created on Coolify! ---\033[0m"
       echo
     fi
+  fi
+
+  db_header=0
+  if [ $NEED_DB_SETUP -eq 1 ]; then
+    db_header=1
+  fi
+  if [ $NEED_DEV_DB_SETUP -eq 1 ]; then
+    db_header=1
+  fi
+
+  if [ $db_header -eq 1 ]; then
+    echo -e "\033[1;32m🤖 --- DEPLOYING ANY DATABASES REQUIRED ON COOLIFY... ---\033[0m"
+    echo
   fi
 
   # Create the Production Database and bring it online
@@ -689,18 +691,22 @@ EOF
       --header "$BEARER" \
       --header 'Content-Type: application/json' \
       -d "$create_prod_db_payload")
-    echo
-    if ! (echo "$create_prod_db_return" | jq . ); then
+    possible_prod_db_uuid=$(jq -r ".uuid" <<< "$create_prod_db_return")
+    if [ "$possible_prod_db_uuid" == "null" ]; then # If the UUID is null, we can assume the setup failed
+      echo -e "$create_prod_db_return" # May not even be JSON, print it out
+      echo
       echo -e "\033[1;31m💀 --- COOLIFY ERROR: Production Database Setup Failed! ---\033[0m"
       echo
       exit 1
     else
+      prod_db_url=$(jq -r ".internal_db_url" <<< "$create_prod_db_return")
+      WASP_DATABASE_URL="$prod_db_url"
+      echo -e "- PROD DB UUID: $possible_prod_db_uuid"
+      echo -e "- PROD DB URL: $WASP_DATABASE_URL"
+      echo
       echo -e "\033[33m✅ --- Production Database Created and Online! ---\033[0m"
       echo
     fi
-    prod_db_url=$(jq -r ".internal_db_url" <<< "$create_prod_db_return")
-    WASP_DATABASE_URL="$prod_db_url"
-    echo "PROD DB URL: $WASP_DATABASE_URL"
   fi
 
   # Create the Development Database and get it up and running
@@ -710,25 +716,43 @@ EOF
       --header "$BEARER" \
       --header 'Content-Type: application/json' \
       -d "$create_dev_db_payload")
-    echo
-    if ! (echo "$create_dev_db_return" | jq . ); then
+    possible_dev_db_uuid=$(jq -r ".uuid" <<< "$create_dev_db_return")
+    if [ "$possible_dev_db_uuid" == "null" ]; then # If the UUID is null, we can assume the setup failed
+      echo -e "$create_dev_db_return" # May not even be JSON, print it out
+      echo
       echo -e "\033[1;31m💀 --- COOLIFY ERROR: Development Database Setup Failed! ---\033[0m"
       echo
       exit 1
     else
+      dev_db_url=$(jq -r ".external_db_url" <<< "$create_dev_db_return")
+      DEV_DATABASE_URL="$dev_db_url"
+      echo -e "- DEV DB UUID: $possible_dev_db_uuid"
+      echo -e "- DEV DB URL: $DEV_DATABASE_URL"
+      echo
       echo -e "\033[33m✅ --- Development Database Created and Online! ---\033[0m"
       echo
     fi
-    dev_db_url=$(jq -r ".external_db_url" <<< "$create_dev_db_return")
-    DEV_DATABASE_URL="$dev_db_url"
-    echo "DEV DB URL: $DEV_DATABASE_URL"
   fi
+
+  # Config the Server Env Vars
+  set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL"
+  set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL"
+  set_server_env "PORT" "$PORT"
+  set_server_env "JWT_SECRET" "$JWT_SECRET"
+
+  # And again for the Preview Deploys
+  set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL" true
+  set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL" true
+  set_server_env "PORT" "$PORT" true
+  set_server_env "JWT_SECRET" "$JWT_SECRET" true
 
   # Set the server env vars for the Production db
   DATABASE_URL="$WASP_DATABASE_URL"
   set_server_env "DATABASE_URL" "$DATABASE_URL"
   set_server_env "DATABASE_URL" "$DATABASE_URL" true
   
+  echo -e "\033[33m✅ --- Successfully configured ENV Variables for the Server App! ---\033[0m"
+  echo
   return 0
 }
 
@@ -941,6 +965,17 @@ else # Configure our `cool-deploy`` script!
         break
       fi
     done
+    if [ $NEED_DEV_DB_SETUP -eq 1 ]; then
+      while true; do
+        read -p $'\033[33mWhat port should the Development Database run on? (default 7766):\033[0m ' dev_db_port
+        if [ -z "$dev_db_port" ]; then
+          dev_db_port=7766
+          break
+        else
+          break
+        fi
+      done
+    fi
     echo
     
     # Get user input for the remaining variables:
@@ -1044,6 +1079,7 @@ else # Configure our `cool-deploy`` script!
       COOLIFY_GIT_COMMIT_SHA="HEAD"
       NEED_DB_SETUP=0
       NEED_DEV_DB_SETUP=0
+      dev_db_port=0
       if [ $GH_PRIVATE -eq 1 ]; then
         COOLIFY_GITHUB_APP_UUID=0
       fi
@@ -1062,6 +1098,9 @@ else # Configure our `cool-deploy`` script!
   create_projects_and_deploy_dbs
 
   cd $WASP_PROJECT_DIR
+
+  echo -e "\033[1;32m🤖 --- SAVING CONFIGURATION AND SETTINGS... ---\033[0m"
+  echo
 
   # Create .env.coolify file template
   if (echo "# Frontend URL (Note: this cannot be changed without rerunning \`./cool-deploy.sh\`!)
@@ -1144,9 +1183,15 @@ FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
   fi
 
   if ! grep -q -z -E "DATABASE_URL" .env.server; then
-    echo "# Database URL for DEVELOPMENT ONLY (Production dB URL is set in Env Vars in Coolify)" >> .env.server
-    echo "# DATABASE_URL=" >> .env.server
-    echo -e "\033[33m✅ --- Added space for 'DATABASE_URL' to \`.env.server\` for Local Development ---\033[0m"
+    if [ -z "$DEV_DATABASE_URL" ]; then
+      echo "# Database URL for DEVELOPMENT ONLY (Production dB URL is set in Env Vars in Coolify)" >> .env.server
+      echo "# DATABASE_URL=" >> .env.server
+      echo -e "\033[33m✅ --- Added space for 'DATABASE_URL' to \`.env.server\` for Local Development ---\033[0m"
+    else
+      echo "# Database URL for DEVELOPMENT ONLY (Production dB URL is set in Env Vars in Coolify)" >> .env.server
+      echo "DATABASE_URL=$DEV_DATABASE_URL" >> .env.server
+      echo -e "\033[33m✅ --- Added Development dB URL to \`.env.server\` for Local Development ---\033[0m"
+    fi
   else
     echo -e "\033[33m✅ --- \`.env.server\` already has a 'DATABASE_URL' entry for Local Development ---\033[0m"
   fi
@@ -1154,6 +1199,7 @@ FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
   echo
   if ! grep -q -z -E "JWT_SECRET" .env.server; then
     LOCAL_JWT_SECRET=$(openssl rand -hex 32)
+    echo "" >> .env.server
     echo "# JWT Secret for Wasp's Auth System (used for local dev only)" >> .env.server
     echo "JWT_SECRET=$LOCAL_JWT_SECRET" >> .env.server
     echo -e "\033[33m✅ --- Added 'JWT_SECRET' to \`.env.server\` for Local Development ---\033[0m"
@@ -1162,8 +1208,8 @@ FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
   fi
 
   echo
-  echo
   echo -e "\033[1;32m🤖 --- COOL-DEPLOY IS NOW FULLY SET UP! ---\033[0m"
+  echo
 fi # End of Coolify Environment file check / setup
 
 if [ $FIRST_TIME_RUN -eq 1 ]; then # First time? Should we deploy?
@@ -1404,6 +1450,11 @@ fi
 echo
 echo -e "Your App is available at: \033[1;34m$WASP_WEB_CLIENT_URL\033[0m"
 echo
+
+if [ ! -z "$dev_db_port" ]; then
+  echo -e "Remember to expose port $dev_db_port on your server's firewall to allow access to the Development Database."
+  echo
+fi
 
 # Get the end time and calculate the difference
 end_time=$(date +%s)
