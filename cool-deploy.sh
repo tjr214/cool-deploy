@@ -776,6 +776,11 @@ EOF
   
   echo -e "\033[33m✅ --- Successfully configured ENV Variables for the Server App! ---\033[0m"
   echo
+
+  # Just make sure our variables link up to the returned UUIDs
+  COOLIFY_SERVER_APP_UUID=$configured_server_uuid
+  COOLIFY_CLIENT_APP_UUID=$configured_client_uuid
+
   return 0
 }
 
@@ -783,6 +788,7 @@ EOF
 # SET PAYLOAD VALUES FOR SERVER & CLIENT
 # ------------------------------------------------------------------------------
 set_payload_values_for_server_client() {
+  # Set Coolify UUID variables
   project_uuid="$COOLIFY_PROJECT_UUID"
   server_uuid="$COOLIFY_SERVER_UUID"
   COOLIFY_ENVIRONMENT_NAME=${COOLIFY_ENVIRONMENT_NAME:-"production"}
@@ -790,6 +796,8 @@ set_payload_values_for_server_client() {
   if [ $GH_PRIVATE -eq 1 ]; then
     github_app_uuid="$COOLIFY_GITHUB_APP_UUID"
   fi
+  configured_server_uuid="$COOLIFY_SERVER_APP_UUID"
+  configured_client_uuid="$COOLIFY_CLIENT_APP_UUID"
 
   # Set Github variables
   git_repository="$COOLIFY_GIT_REPOSITORY"
@@ -1125,9 +1133,12 @@ else # Configure our `cool-deploy`` script!
 
   cd $WASP_PROJECT_DIR
 
+  # Make sure our variables are all syncing up
   PORT=$WASP_SERVER_PORT
   JWT_SECRET=$WASP_JWT_SECRET
   set_payload_values_for_server_client
+
+  # Create the Coolify Projects and, if necessary, deploy any dBs
   create_projects_and_deploy_dbs
 
   cd $WASP_PROJECT_DIR
@@ -1158,6 +1169,10 @@ COOLIFY_SERVER_UUID={{COOL_SERVER_UUID}}
 COOLIFY_PROJECT_UUID={{COOL_PROJECT_UUID}}
 COOLIFY_ENVIRONMENT_NAME={{COOL_ENVIRONMENT_NAME}}
 
+# UUIDs for the Frontend and Backend Coolify Apps
+COOLIFY_SERVER_APP_UUID={{COOL_SERVER_APP_UUID}}
+COOLIFY_CLIENT_APP_UUID={{COOL_CLIENT_APP_UUID}}
+
 # Coolify Git Config
 GH_PRIVATE={{COOL_GIT_PRIVATE}}
 COOLIFY_GITHUB_APP_UUID={{COOL_GITHUB_APP_UUID}}
@@ -1186,7 +1201,7 @@ FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
   COOL_CLIENT_DESCRIPTION=\"$COOLIFY_CLIENT_DESCRIPTION\"
 
   # Replace the Env placeholders in `.coolify.env`
-  if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{COOL_URL}}|$COOLIFY_BASE_URL|g; s~{{COOL_KEY}}~$COOLIFY_COOL_KEY~g; s|{{COOL_SERVER_UUID}}|$COOLIFY_SERVER_UUID|g; s|{{COOL_PROJECT_UUID}}|$COOLIFY_PROJECT_UUID|g; s|{{COOL_ENVIRONMENT_NAME}}|$COOL_ENVIRONMENT_NAME|g; s|{{COOL_GITHUB_APP_UUID}}|$COOLIFY_GITHUB_APP_UUID|g; s|{{COOL_GIT_PRIVATE}}|$GH_PRIVATE|g; s|{{COOL_GIT_REPO}}|$COOLIFY_GIT_REPOSITORY|g; s|{{COOL_GIT_BRANCH}}|$COOLIFY_GIT_BRANCH|g; s|{{COOL_CLIENT_DESCRIPTION}}|$COOL_CLIENT_DESCRIPTION|g; s|{{COOL_SERVER_DESCRIPTION}}|$COOL_SERVER_DESCRIPTION|g" .env.coolify); then
+  if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{COOL_URL}}|$COOLIFY_BASE_URL|g; s~{{COOL_KEY}}~$COOLIFY_COOL_KEY~g; s|{{COOL_SERVER_UUID}}|$COOLIFY_SERVER_UUID|g; s|{{COOL_PROJECT_UUID}}|$COOLIFY_PROJECT_UUID|g; s|{{COOL_ENVIRONMENT_NAME}}|$COOL_ENVIRONMENT_NAME|g; s|{{COOL_GITHUB_APP_UUID}}|$COOLIFY_GITHUB_APP_UUID|g; s|{{COOL_SERVER_APP_UUID}}|$COOLIFY_SERVER_APP_UUID|g; s|{{COOL_CLIENT_APP_UUID}}|$COOLIFY_CLIENT_APP_UUID|g; s|{{COOL_GIT_PRIVATE}}|$GH_PRIVATE|g; s|{{COOL_GIT_REPO}}|$COOLIFY_GIT_REPOSITORY|g; s|{{COOL_GIT_BRANCH}}|$COOLIFY_GIT_BRANCH|g; s|{{COOL_CLIENT_DESCRIPTION}}|$COOL_CLIENT_DESCRIPTION|g; s|{{COOL_SERVER_DESCRIPTION}}|$COOL_SERVER_DESCRIPTION|g" .env.coolify); then
     echo -e "\033[33m✅ --- Successfully configured Coolify Environment file with your chosen settings ---\033[0m"
     echo
   else
@@ -1245,7 +1260,7 @@ FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
   echo
 fi # End of Coolify Environment file check / setup
 
-remember_to_expose_msg = "Remember to expose port $dev_db_port on your server's firewall to allow access to the Development Database."
+remember_to_expose_msg="033[1;43mRemember to expose port '$dev_db_port' on your server's firewall to allow access to the Development Database.\033[0m"
 
 if [ $FIRST_TIME_RUN -eq 1 ]; then # First time? Should we deploy?
   while true; do
@@ -1262,18 +1277,21 @@ if [ $FIRST_TIME_RUN -eq 1 ]; then # First time? Should we deploy?
       break
     elif [ "$DEPLOY_CONTINUE" == "n" ]; then
       if [ ! -z "$dev_db_port" ]; then
+        echo
         echo -e "$remember_to_expose_msg"
       fi
       exit 0
       break
     elif [ "$DEPLOY_CONTINUE" == "N" ]; then
       if [ ! -z "$dev_db_port" ]; then
+        echo
         echo -e "$remember_to_expose_msg"
       fi
       exit 0
       break
     elif [ "$DEPLOY_CONTINUE" == "no" ]; then
       if [ ! -z "$dev_db_port" ]; then
+        echo
         echo -e "$remember_to_expose_msg"
       fi
       exit 0
@@ -1344,6 +1362,8 @@ echo -e "\033[1;33m - Running on Wasp:\033[0m \033[31m$WASP_VERSION\033[0m"
 echo -e "\033[1;33m - Coolify Version:\033[0m \033[31m$COOLIFY_VERSION\033[0m"
 echo -e "\033[1;33m - Coolify Server UUID:\033[0m \033[32m$server_uuid\033[0m"
 echo -e "\033[1;33m - Coolify Project UUID:\033[0m \033[32m$project_uuid\033[0m"
+echo -e "\033[1;33m - Coolify Frontend App UUID:\033[0m \033[32m$configured_client_uuid\033[0m"
+echo -e "\033[1;33m - Coolify Backend App UUID:\033[0m \033[32m$configured_server_uuid\033[0m"
 echo -e "\033[1;33m - Coolify Environment Name:\033[0m \033[32m$environment_name\033[0m"
 if [ $GH_PRIVATE -eq 1 ]; then
   echo -e "\033[1;33m - Using Github App Key:\033[0m \033[32m$github_app_uuid\033[0m"
@@ -1505,6 +1525,9 @@ fi
 
 # If we haven't finished the Coolify setup, start the containers
 if [ $FINISHED_COOLIFY_SETUP -eq 0 ]; then
+  # Lets make sure all the variables for payload are correctly set
+  set_payload_values_for_server_client
+
   echo
   echo -e "\033[1;32m🤖 --- STARTING CONTAINERS FOR FRONTEND AND BACKEND...\033[0m"
   echo
@@ -1514,7 +1537,7 @@ if [ $FINISHED_COOLIFY_SETUP -eq 0 ]; then
     --url $COOLIFY_BASE_URL/api/v1/applications/$configured_server_uuid/start \
     --header "$BEARER" \
     --header 'Content-Type: application/json')
-    possible_deploy_server_uuid=$(jq -r ".uuid" <<< "$deploy_server_return")
+    possible_deploy_server_uuid=$(jq -r ".deployment_uuid" <<< "$deploy_server_return")
     possible_deploy_server_error=$(jq -r ".error" <<< "$deploy_server_return")
     possible_deploy_server_msg=$(jq -r ".message" <<< "$deploy_server_return")
   if [ ! "$possible_deploy_server_error" == "null" ]; then
@@ -1544,7 +1567,7 @@ if [ $FINISHED_COOLIFY_SETUP -eq 0 ]; then
     --url $COOLIFY_BASE_URL/api/v1/applications/$configured_client_uuid/start \
     --header "$BEARER" \
     --header 'Content-Type: application/json')
-  possible_deploy_client_uuid=$(jq -r ".uuid" <<< "$deploy_client_return")
+  possible_deploy_client_uuid=$(jq -r ".deployment_uuid" <<< "$deploy_client_return")
   possible_deploy_client_error=$(jq -r ".error" <<< "$deploy_client_return")
   possible_deploy_client_msg=$(jq -r ".message" <<< "$deploy_client_return")
   if [ ! "$possible_deploy_client_error" == "null" ]; then
@@ -1569,7 +1592,8 @@ if [ $FINISHED_COOLIFY_SETUP -eq 0 ]; then
     fi
   fi
   FINISHED_COOLIFY_SETUP=1
-  sed -i 's/FINISHED_COOLIFY_SETUP=0/FINISHED_COOLIFY_SETUP=1/' .env.coolify
+  sed -i "" 's/FINISHED_COOLIFY_SETUP=0/FINISHED_COOLIFY_SETUP=1/' .env.coolify
+
 fi
 
 echo
@@ -1577,7 +1601,7 @@ echo -e "Your App is available at: \033[1;34m$WASP_WEB_CLIENT_URL\033[0m"
 echo
 
 if [ ! -z "$dev_db_port" ]; then
-  echo -e "033[1;43mRemember to expose port $dev_db_port on your server's firewall to allow access to the Development Database.\033[0m"
+  echo -e "033[1;43mRemember to expose port '$dev_db_port' on your server's firewall to allow access to the Development Database.\033[0m"
   echo
 fi
 
