@@ -212,11 +212,19 @@ get_coolify_github_key() {
 # ------------------------------------------------------------------------------
 set_server_env() {
   if [ -z "$1" ]; then
-    echo "ERROR: No 'Key' Provided for Environment Variable!"
+    if [ ! -z "$2" ]; then
+      echo -e "ERROR: No 'Key' Provided for Environment Variable Value '$2'!"
+    else
+      echo -e "ERROR: No 'Key' or 'Value' Provided for Environment Variable!"
+    fi
+    echo
+    echo -e "\033[1;31m💀 --- COOLIFY ERROR: Server Set Env Variable Failed! See above for possible details... ---\033[0m"
     exit 1
   fi
   if [ -z "$2" ]; then
-    echo "ERROR: No 'Value' Provided for Environment Variable!"
+    echo "ERROR: No 'Value' Provided for Environment Variable Key '$1'!"
+    echo
+    echo -e "\033[1;31m💀 --- COOLIFY ERROR: Server Set Env Variable Failed! See above for possible details... ---\033[0m"
     exit 1
   fi
   if [ -z "$3" ]; then
@@ -237,15 +245,30 @@ EOF
     --header "$BEARER" \
     --header 'Content-Type: application/json' \
     -d "$env_payload")
-  local env_uuid=$(jq -r ".uuid" <<< "$env_return")
-  if [ -z "$env_uuid" ]; then
-    echo "ERROR: Server Set Env Variable Failed!"
-    if ! (echo "$env_return" | jq . ); then
-      echo "$env_return"
-    fi
+  local possible_env_uuid=$(jq -r ".uuid" <<< "$env_return")
+  local possible_env_error=$(jq -r ".error" <<< "$env_return")
+  local possible_env_msg=$(jq -r ".message" <<< "$env_return")
+  if [ ! "$possible_env_error" == "null" ]; then
+    echo -e "$env_payload"
+    echo
+    echo -e "$possible_env_error"
+    echo -e "$possible_env_msg"
+    echo
+    echo -e "\033[1;31m💀 --- COOLIFY ERROR: Server Set Env Variable Failed! See above for possible details... ---\033[0m"
+    echo
     exit 1
+  else
+    if [ "$possible_env_uuid" == "null" ]; then # If the UUID is null, we can assume the setup failed
+      echo -e "$env_return" # May not even be JSON, print it out
+      echo
+      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not create new Server App! See above for possible details... ---\033[0m"
+      echo
+      exit 1
+    else # If we got here, we can assume a successful setup
+      return 0
+    fi
   fi
-  return 0
+  return 1
 }
 
 # ------------------------------------------------------------------------------
@@ -790,8 +813,18 @@ set_payload_values_for_server_client() {
   server_instant_deploy="false"
 }
 
+# ------------------------------------------------------------------------------
+#
+# !!!  This is where function definitions end and the main script starts  !!!
+#
+# ------------------------------------------------------------------------------
+
 # Detect if the `jq` command line tool is installed and available
 detect_jq
+
+#
+# TODO: Maybe do some ASCII Art for the Logo here?
+#
 
 # ------------------------------------------------------------------------------
 # SETUP FILESYSTEM & CONFIGURE DEPLOYMENT VARIABLES
@@ -1212,6 +1245,8 @@ FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
   echo
 fi # End of Coolify Environment file check / setup
 
+remember_to_expose_msg = "Remember to expose port $dev_db_port on your server's firewall to allow access to the Development Database."
+
 if [ $FIRST_TIME_RUN -eq 1 ]; then # First time? Should we deploy?
   while true; do
     echo
@@ -1226,12 +1261,21 @@ if [ $FIRST_TIME_RUN -eq 1 ]; then # First time? Should we deploy?
       FIRST_TIME_RUN=0
       break
     elif [ "$DEPLOY_CONTINUE" == "n" ]; then
+      if [ ! -z "$dev_db_port" ]; then
+        echo -e "$remember_to_expose_msg"
+      fi
       exit 0
       break
     elif [ "$DEPLOY_CONTINUE" == "N" ]; then
+      if [ ! -z "$dev_db_port" ]; then
+        echo -e "$remember_to_expose_msg"
+      fi
       exit 0
       break
     elif [ "$DEPLOY_CONTINUE" == "no" ]; then
+      if [ ! -z "$dev_db_port" ]; then
+        echo -e "$remember_to_expose_msg"
+      fi
       exit 0
       break
     fi
@@ -1241,6 +1285,21 @@ if [ $FIRST_TIME_RUN -eq 1 ]; then # First time? Should we deploy?
     # Load our Coolify config variables
     echo -e "\033[1;32m🤖 --- LOADING ENVIRONMENT VARIABLES FROM .env.coolify ---\033[0m"
     source .env.coolify
+    if [ -z "$COOLIFY_API_KEY" ]; then
+      echo
+      echo -e "\033[1;31m🛑 --- ERROR: 'COOLIFY_API_KEY' not found in \`.env.coolify\`! ---\033[0m"
+      echo
+      exit 1
+    fi
+    if [ -z "$COOLIFY_BASE_URL" ]; then
+      echo
+      echo -e "\033[1;31m🛑 --- ERROR: 'COOLIFY_BASE_URL' not found in \`.env.coolify\`! ---\033[0m"
+      echo
+      exit 1
+    fi
+    BEARER="Authorization: Bearer $COOLIFY_API_KEY"
+    run_coolify_healthcheck
+    configure_some_coolify_settings # if any of this is missing, go grab it from the user
   else # throw error
     echo -e "\033[1;31m🛑 --- Error: Coolify Environment file not found! THIS SHOULD NOT HAPPEN! ---\033[0m"
     echo
@@ -1249,7 +1308,9 @@ if [ $FIRST_TIME_RUN -eq 1 ]; then # First time? Should we deploy?
 fi # End check for first time run
 
 # ------------------------------------------------------------------------------
-# BELOW THIS LINE IS THE ACTUAL DEPLOYMENT SCRIPT
+#
+# !!!  BELOW THIS LINE IS THE ACTUAL DEPLOYMENT SCRIPT  !!!
+#
 # ------------------------------------------------------------------------------
 
 # Tell the client frontend where to find the server backend
@@ -1274,7 +1335,7 @@ COOLIFY_VERSION=$(get_coolify_version)
 set_payload_values_for_server_client
 
 # Show the relevant information about the deployment and ask to confirm
-echo -e "\033[1;36m🤖 --- WASP PROJECT & SERVER DEPLOYMENT INFO...\033[0m"
+echo -e "\033[1;36m🤖 --- WASP PROJECT DEPLOYMENT & SERVER INFO...\033[0m"
 echo
 
 echo -e "\033[1;43m• WASP PROJECT \033[3;43m$WASP_APP_NAME \033[0m"
@@ -1334,13 +1395,6 @@ done
 
 # Get the start time
 start_time=$(date +%s)
-
-# ------------------------------------------------------------------------------
-# TODO: From `api-test.sh`
-echo "HERE IS WHERE WE WOULD BUILD THE PROJECT AND PUSH IT TO GIT!"
-# ------------------------------------------------------------------------------
-
-exit 1
 
 # Begin Deployment Process!
 cd $WASP_PROJECT_DIR
