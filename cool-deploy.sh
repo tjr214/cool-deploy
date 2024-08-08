@@ -1482,6 +1482,7 @@ echo
 echo -e "\033[1;32m🤖 --- DEPLOYING VIA GIT and COOLIFY WEBHOOKS...\033[0m"
 echo
 
+# Format the commit message
 TIMESTAMP_UNIX=$(date +%s)
 TIMESTAMP_HUMAN=$(date "+%I:%M:%S %p on %m/%d/%Y")
 COMMIT_MSG="Cool-Deploy: $COMMIT_MSG
@@ -1490,6 +1491,7 @@ Code pushed to repository at: $TIMESTAMP_HUMAN.
 UNIX Epoc: [$TIMESTAMP_UNIX]
 "
 
+# Push the changes to GitHub
 cd $WASP_PROJECT_DIR
 git add .
 git commit -m "$COMMIT_MSG"
@@ -1501,12 +1503,81 @@ else
   echo -e "\033[1;31m🛑 --- Failed to push Anything to GitHub! ---\033[0m"
 fi
 
+# If we haven't finished the Coolify setup, start the containers
+if [ $FINISHED_COOLIFY_SETUP -eq 0 ]; then
+  echo
+  echo -e "\033[1;32m🤖 --- STARTING CONTAINERS FOR FRONTEND AND BACKEND...\033[0m"
+  echo
+
+  # First the Server
+  deploy_server_return=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/applications/$configured_server_uuid/start \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json')
+    possible_deploy_server_uuid=$(jq -r ".uuid" <<< "$deploy_server_return")
+    possible_deploy_server_error=$(jq -r ".error" <<< "$deploy_server_return")
+    possible_deploy_server_msg=$(jq -r ".message" <<< "$deploy_server_return")
+  if [ ! "$possible_deploy_server_error" == "null" ]; then
+    echo -e "$possible_deploy_server_error"
+    echo -e "$possible_deploy_server_msg"
+    echo
+    echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not start Container for Backend! See above for possible details... ---\033[0m"
+    echo
+    exit 1
+  else
+    if [ "$possible_deploy_server_uuid" == "null" ]; then # If the UUID is null, we can assume the setup failed
+      echo -e "$deploy_server_return" # May not even be JSON, print it out
+      echo
+      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not start Container for Backend! See above for possible details... ---\033[0m"
+      echo
+      exit 1
+    else # If we got here, we can assume a successful setup
+      echo -e "- SERVER DEPLOY UUID: $possible_deploy_server_uuid"
+      echo
+      echo -e "\033[33m✅ --- Success: Container running Backend App is now live on Coolify! ---\033[0m"
+      echo
+    fi
+  fi
+
+  # And finally, the Client.
+  deploy_client_return=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/applications/$configured_client_uuid/start \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json')
+  possible_deploy_client_uuid=$(jq -r ".uuid" <<< "$deploy_client_return")
+  possible_deploy_client_error=$(jq -r ".error" <<< "$deploy_client_return")
+  possible_deploy_client_msg=$(jq -r ".message" <<< "$deploy_client_return")
+  if [ ! "$possible_deploy_client_error" == "null" ]; then
+    echo -e "$possible_deploy_client_error"
+    echo -e "$possible_deploy_client_msg"
+    echo
+    echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not start Container for Frontend! See above for possible details... ---\033[0m"
+    echo
+    exit 1
+  else
+    if [ "$possible_deploy_client_uuid" == "null" ]; then # If the UUID is null, we can assume the setup failed
+      echo -e "$deploy_client_return" # May not even be JSON, print it out
+      echo
+      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not start Container for Frontend! See above for possible details... ---\033[0m"
+      echo
+      exit 1
+    else
+      echo -e "- CLIENT DEPLOY UUID: $possible_deploy_client_uuid"
+      echo
+      echo -e "\033[33m✅ --- Success: Container running Frontend App is now live on Coolify! ---\033[0m"
+      echo
+    fi
+  fi
+  FINISHED_COOLIFY_SETUP=1
+  sed -i 's/FINISHED_COOLIFY_SETUP=0/FINISHED_COOLIFY_SETUP=1/' .env.coolify
+fi
+
 echo
 echo -e "Your App is available at: \033[1;34m$WASP_WEB_CLIENT_URL\033[0m"
 echo
 
 if [ ! -z "$dev_db_port" ]; then
-  echo -e "Remember to expose port $dev_db_port on your server's firewall to allow access to the Development Database."
+  echo -e "033[1;43mRemember to expose port $dev_db_port on your server's firewall to allow access to the Development Database.\033[0m"
   echo
 fi
 
