@@ -1850,16 +1850,23 @@ if [ $FINISHED_COOLIFY_SETUP -eq 0 ]; then
 
 fi
 
-
-#
-# !!! Check to see if we are using a Public or Private Key repo !!!
-# If YES --> trigger Webhook redeployment
-server="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&force=false"
-client="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false"
-#
-
-echo -e "$server"
-echo -e "$client"
+# If Source is Private Key Deploy or Public Repo, trigger Webhook redeployment
+if [ $GH_PRIVATE -eq 1 ] || [ $GH_PRIVATE -eq 2 ]; then
+  server="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&force=false"
+  client="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false"
+  echo -e "$server"
+  echo -e "$client"
+  echo
+  server_manual_redeploy=$(curl -s --request GET \
+      --url "$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&force=false" \
+      --header "$BEARER")
+  client_manual_redeploy=$(curl -s --request GET \
+      --url "$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false" \
+      --header "$BEARER")
+  echo -e "$server_manual_redeploy"
+  echo -e "$client_manual_redeploy"
+  echo
+fi
 
 echo
 echo -e "Your App is available at: \033[1;34m$WASP_WEB_CLIENT_URL\033[0m"
@@ -1882,7 +1889,7 @@ if [ $elapsed_time -gt 59 ]; then
     if [ $minutes -gt 1 ]; then
       MINUTE_SUFIX="minutes"
     fi
-    echo -e "\033[1;43m🎉 --- DEPLOYMENT COMPLETED IN: $minutes $MINUTE_SUFIX and $seconds seconds!\033[0m"
+    echo -e "\033[1;33m🎉 --- DEPLOYMENT COMPLETED IN: $minutes $MINUTE_SUFIX and $seconds seconds!\033[0m"
 else
     echo -e "\033[1;33m🎉 --- DEPLOYMENT COMPLETED IN: $elapsed_time seconds!\033[0m"
 fi
