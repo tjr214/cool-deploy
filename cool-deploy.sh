@@ -7,8 +7,9 @@ FIRST_TIME_RUN=0
 NEED_DB_SETUP=0
 NEED_DEV_DB_SETUP=0
 BEARER=""
-GH_PRIVATE=0
-COOLIFY_GITHUB_APP_UUID=0
+# GH_PRIVATE=0 # 0 = Public; 1 = Private Github App; 2 = Private Key Git Repo
+COOLIFY_GITHUB_APP_UUID=""
+COOLIFY_GITHUB_PRIVATE_KEY_UUID=""
 COOLIFY_GIT_COMMIT_SHA="HEAD"
 
 # Deploy directories
@@ -26,6 +27,14 @@ fi
 if [ -z "$WASP_VERSION" ]; then
   WASP_VERSION="unknownVersion"
 fi
+
+# CLI Args
+# - init      (let script continue as normal and it will configure. If .env.coolify exists, error out)
+# - start db  (start dev db on Coolify)
+# - stop db   (stop dev db on Coolify)
+# - status    (show status of Frontend and Backend on Coolify)
+# - redeploy  (trigger manual redeployment)
+# - msg "x"   (set a commit message for the deployment)
 
 
 # ------------------------------------------------------------------------------
@@ -163,6 +172,72 @@ new_coolify_project() {
 }
 
 # ------------------------------------------------------------------------------
+# NEW_COOLIFY_PRIVATE_KEY
+# ------------------------------------------------------------------------------
+new_coolify_private_key() {
+  local pk_name="$1"
+  local pk_description="$2"
+  
+  # Create a temporary file in the system's temporary directory. The file is
+  # created with read and write permissions for the current owner only.
+  TMPFILE=$(mktemp)
+  rm -f "$TMPFILE"
+  trap "rm -f '$TMPFILE'" EXIT
+
+  # Use the temporary file and get the private key from it
+  ssh-keygen -t rsa -b 4096 -C "deploy_key" -N "" -f "$TMPFILE"
+  local pk_key=$(cat "$TMPFILE")
+  original_pk_key="$pk_key"
+  local pk_key=${pk_key//$'\n'/\\n} # replace all newlines with `\n`
+  rm -f "$TMPFILE"
+
+  local pk_payload=$(cat <<EOF
+{
+  "name": "$pk_name",
+  "description": "$pk_description",
+  "private_key": "$pk_key"
+}
+EOF
+  )
+  local pk_info=$(curl -s --request POST \
+    --url $COOLIFY_BASE_URL/api/v1/security/keys \
+    --header "$BEARER" \
+    --header 'Content-Type: application/json' \
+    --data "$pk_payload"
+  )
+  local pk_uuid=$(jq -r ".uuid" <<< "$pk_info")
+  local possible_pk_error=$(jq -r ".error" <<< "$pk_info")
+  local possible_pk_errors=$(jq -r ".errors" <<< "$pk_info")
+  local possible_pk_msg=$(jq -r ".message" <<< "$pk_info")
+  if [ ! "$possible_pk_error" == "null" ]; then
+    echo -e "$pk_payload"
+    echo
+    if [ ! "$possible_pk_error" == "null" ]; then
+      echo -e "$possible_pk_error"
+    fi
+    if [ ! "$possible_pk_errors" == "null" ]; then
+      echo -e "$possible_pk_errors"
+    fi
+    echo -e "$possible_pk_msg"
+    echo
+    echo -e "\033[1;31m💀 --- COOLIFY ERROR: Private Key Creation Failed! See above for possible details... ---\033[0m"
+    echo
+    exit 1
+  else
+    if [ "$pk_uuid" == "null" ]; then # If the UUID is null, we can assume the setup failed
+      echo -e "$pk_info" # May not even be JSON, print it out
+      echo
+      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not create new Private Key! See above for possible details... ---\033[0m"
+      echo
+      exit 1
+    else # If we got here, we can assume a successful setup
+      # echo -e "- PRIVATE KEY UUID: $pk_uuid"
+      COOLIFY_GITHUB_PRIVATE_KEY_UUID="$pk_uuid"
+    fi
+  fi
+}
+
+# ------------------------------------------------------------------------------
 # GET_COOLIFY_GITHUB_KEY
 # Optional: $1 = if already retrieved UUID, check to make sure it is valid.
 # ------------------------------------------------------------------------------
@@ -197,6 +272,48 @@ get_coolify_github_key() {
   if [ ! -z "$1" ]; then
     if [ $valid_key -eq 0 ]; then
       echo -e "\033[1;31mERROR: Github App Key with UUID \`$1\` not found!\033[0m"
+      return 1
+    fi
+    return 0
+  fi
+  return 0
+}
+
+# ------------------------------------------------------------------------------
+# GET_COOLIFY_PRIVATE_KEY
+# Optional: $1 = if already retrieved UUID, check to make sure it is valid.
+# ------------------------------------------------------------------------------
+get_coolify_private_key() {
+  if [ ! -z "$1" ]; then
+    valid_private_key=0
+  fi
+  local keys=$(curl -s --request GET \
+    --url $COOLIFY_BASE_URL/api/v1/security/keys \
+    --header "$BEARER")
+  local key_found=0
+  local key_count=$(jq '. | length' <<< "$keys")
+  for ((i = 0; i < key_count; i++)); do # Loop through all keys
+    local key_is_git_related=$(jq -r ".[$i].is_git_related" <<< "$keys")
+    if [ "$key_is_git_related" == "false" ]; then
+      local key_uuid=$(jq -r ".[$i].uuid" <<< "$keys")
+      if [ -z "$1" ]; then # $1 is empty, just print the data
+        ((key_found++))
+        local key_id=$(jq -r ".[$i].id" <<< "$keys")
+        local key_name=$(jq -r ".[$i].name" <<< "$keys")
+        local key_description=$(jq -r ".[$i].description" <<< "$keys")
+        echo -e "\033[33mPrivate Key-$key_found:\033[0m \033[1;31m$key_name\033[0m"
+        echo -e "  Description: $key_description"
+        echo -e "  UUID: \033[1;37m$key_uuid\033[0m"
+      else # Check if the UUID matches the one provided
+        if [ "$key_uuid" == "$1" ]; then
+          valid_private_key=1
+        fi
+      fi
+    fi
+  done # End of project loop
+  if [ ! -z "$1" ]; then
+    if [ $valid_private_key -eq 0 ]; then
+      echo -e "\033[1;31mERROR: Private Key with UUID \`$1\` not found!\033[0m"
       return 1
     fi
     return 0
@@ -284,9 +401,17 @@ configure_some_coolify_settings() {
   if [ -z "$COOLIFY_PROJECT_UUID" ]; then
     do_header=1
   fi
-  if [ $GH_PRIVATE -eq 1 ]; then
-    if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
-      do_header=1
+  if [ -z "$GH_PRIVATE" ]; then
+    do_header=1
+  else
+    if [ $GH_PRIVATE -eq 1 ]; then
+      if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
+        do_header=1
+      fi
+    elif [ $GH_PRIVATE -eq 2 ]; then
+      if [ -z "$COOLIFY_GITHUB_PRIVATE_KEY_UUID" ]; then
+        do_header=1
+      fi
     fi
   fi
   if [ -z "$COOLIFY_GIT_REPOSITORY" ]; then
@@ -377,6 +502,24 @@ configure_some_coolify_settings() {
     done # End of New/List/Add Loop
   fi
 
+  # Get the Source to clone from
+  if [ -z "$GH_PRIVATE" ]; then
+    while true; do
+      read -p $'\033[33mEnter the Source Type (0 = Public Github; 1 = Pivate Github App; 2 = Private Key):\033[0m ' GH_PRIVATE
+      if [ -z "$GH_PRIVATE" ]; then
+        echo -e "\033[31mPlease enter something valid!\033[0m"
+      elif ! [[ "$GH_PRIVATE" =~ ^[0-9]+$ ]]; then
+        echo -e "\033[31mPlease enter a WHOLE number in the range of 0-2 inclusive!\033[0m"
+      elif [ "$GH_PRIVATE" -gt 2 ]; then
+        echo -e "\033[31mPlease enter a number in the range of 0-2 inclusive!\033[0m"
+      elif [ "$GH_PRIVATE" -lt 0 ]; then
+        echo -e "\033[31mNow you're just being a brat\033[0m"
+      else
+        break
+      fi
+    done
+  fi
+
   if [ $GH_PRIVATE -eq 1 ]; then
     # Grab the UUID of the Github App Key, so we can actually deploy:
     if [ -z "$COOLIFY_GITHUB_APP_UUID" ]; then
@@ -391,6 +534,43 @@ configure_some_coolify_settings() {
             break
           else
             get_coolify_github_key
+          fi
+        fi
+      done
+    fi
+  fi
+
+  if [ $GH_PRIVATE -eq 2 ]; then
+    # Grab the UUID of the Private Key
+    if [ -z "$COOLIFY_GITHUB_PRIVATE_KEY_UUID" ]; then
+      get_coolify_private_key
+      while true; do # Get Github Key loop
+        read -p $'\033[33mEnter the UUID of the Private Key to use, or type NEW to create a new key:\033[0m ' COOLIFY_GITHUB_PRIVATE_KEY_UUID
+        if [ -z "$COOLIFY_GITHUB_PRIVATE_KEY_UUID" ]; then
+          echo -e "\033[31mPlease enter a valid Private Key UUID!\033[0m"
+        else
+          make_new_key=$(echo "$COOLIFY_GITHUB_PRIVATE_KEY_UUID" | tr '[:lower:]' '[:upper:]')
+          if [ "$make_new_key" == "NEW" ]; then
+            # Get a name for the new Private Key
+            while true; do
+              read -p $'\033[33mEnter a name for the Private Key:\033[0m ' new_private_key_name
+              if [ -z "$new_private_key_name" ]; then
+                echo -e "\033[31mPlease enter a valid Private Key Name!\033[0m"
+              else
+                break
+              fi
+            done
+            local new_key_description="Auto-Generated by Cool-Deploy for Wasp App '$WASP_APP_NAME' on '$(date +%Y-%m-%d)'"
+            new_coolify_private_key "$new_private_key_name" "$new_key_description"
+            echo -e "COOLIFY_GITHUB_PRIVATE_KEY_UUID: $COOLIFY_GITHUB_PRIVATE_KEY_UUID"
+            break
+          else
+            get_coolify_private_key "$COOLIFY_GITHUB_PRIVATE_KEY_UUID"
+            if [ $? -eq 0 ]; then
+              break
+            else
+              get_coolify_private_key
+            fi
           fi
         fi
       done
@@ -795,6 +975,8 @@ set_payload_values_for_server_client() {
   environment_name="$COOLIFY_ENVIRONMENT_NAME"
   if [ $GH_PRIVATE -eq 1 ]; then
     github_app_uuid="$COOLIFY_GITHUB_APP_UUID"
+  elif [ $GH_PRIVATE -eq 2 ]; then
+    github_private_key_uuid="$COOLIFY_GITHUB_PRIVATE_KEY_UUID"
   fi
   configured_server_uuid="$COOLIFY_SERVER_APP_UUID"
   configured_client_uuid="$COOLIFY_CLIENT_APP_UUID"
@@ -1068,6 +1250,11 @@ else # Configure our `cool-deploy`` script!
     echo -e "\033[1;34mCOOLIFY_BASE_URL\033[0m=$COOLIFY_BASE_URL"
     echo -e "\033[1;34mCOOLIFY_SERVER_UUID\033[0m=$COOLIFY_SERVER_UUID"
     echo -e "\033[1;34mCOOLIFY_PROJECT_UUID\033[0m=$COOLIFY_PROJECT_UUID"
+    if [ $GH_PRIVATE -eq 1 ]; then
+      echo -e "\033[1;34mCOOLIFY_GITHUB_APP_UUID\033[0m=$COOLIFY_GITHUB_APP_UUID"
+    elif [ $GH_PRIVATE -eq 2 ]; then
+      echo -e "\033[1;34mCOOLIFY_GITHUB_PRIVATE_KEY_UUID\033[0m=$COOLIFY_GITHUB_PRIVATE_KEY_UUID"
+    fi
     echo -e "\033[1;34mCOOLIFY_GIT_REPOSITORY\033[0m=$COOLIFY_GIT_REPOSITORY"
     echo -e "\033[1;34mCOOLIFY_GIT_BRANCH\033[0m=$COOLIFY_GIT_BRANCH"
     echo -e "\033[1;34mCOOLIFY_GIT_COMMIT_SHA\033[0m=$COOLIFY_GIT_COMMIT_SHA"
@@ -1122,7 +1309,9 @@ else # Configure our `cool-deploy`` script!
       NEED_DEV_DB_SETUP=0
       dev_db_port=0
       if [ $GH_PRIVATE -eq 1 ]; then
-        COOLIFY_GITHUB_APP_UUID=0
+        COOLIFY_GITHUB_APP_UUID=""
+      elif [ $GH_PRIVATE -eq 2 ]; then
+        COOLIFY_GITHUB_PRIVATE_KEY_UUID=""
       fi
     fi
   done # End of settings config loop
@@ -1176,6 +1365,7 @@ COOLIFY_CLIENT_APP_UUID={{COOL_CLIENT_APP_UUID}}
 # Coolify Git Config
 GH_PRIVATE={{COOL_GIT_PRIVATE}}
 COOLIFY_GITHUB_APP_UUID={{COOL_GITHUB_APP_UUID}}
+COOLIFY_GITHUB_PRIVATE_KEY_UUID={{COOL_GITHUB_PRIVATE_KEY_UUID}}
 COOLIFY_GIT_REPOSITORY={{COOL_GIT_REPO}}
 COOLIFY_GIT_BRANCH={{COOL_GIT_BRANCH}}
 COOLIFY_GIT_COMMIT_SHA=\"HEAD\"
@@ -1201,7 +1391,7 @@ FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
   COOL_CLIENT_DESCRIPTION=\"$COOLIFY_CLIENT_DESCRIPTION\"
 
   # Replace the Env placeholders in `.coolify.env`
-  if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{COOL_URL}}|$COOLIFY_BASE_URL|g; s~{{COOL_KEY}}~$COOLIFY_COOL_KEY~g; s|{{COOL_SERVER_UUID}}|$COOLIFY_SERVER_UUID|g; s|{{COOL_PROJECT_UUID}}|$COOLIFY_PROJECT_UUID|g; s|{{COOL_ENVIRONMENT_NAME}}|$COOL_ENVIRONMENT_NAME|g; s|{{COOL_GITHUB_APP_UUID}}|$COOLIFY_GITHUB_APP_UUID|g; s|{{COOL_SERVER_APP_UUID}}|$COOLIFY_SERVER_APP_UUID|g; s|{{COOL_CLIENT_APP_UUID}}|$COOLIFY_CLIENT_APP_UUID|g; s|{{COOL_GIT_PRIVATE}}|$GH_PRIVATE|g; s|{{COOL_GIT_REPO}}|$COOLIFY_GIT_REPOSITORY|g; s|{{COOL_GIT_BRANCH}}|$COOLIFY_GIT_BRANCH|g; s|{{COOL_CLIENT_DESCRIPTION}}|$COOL_CLIENT_DESCRIPTION|g; s|{{COOL_SERVER_DESCRIPTION}}|$COOL_SERVER_DESCRIPTION|g" .env.coolify); then
+  if (sed -i "" "s|{{FRONT_URL}}|$WASP_WEB_CLIENT_URL|g; s|{{BACK_URL}}|$REACT_APP_API_URL|g; s|{{BACK_PORT}}|$WASP_SERVER_PORT|g; s|{{DATABASE_URL}}|$WASP_DATABASE_URL|g; s|{{AUTH_SECRET}}|$WASP_JWT_SECRET|g; s|{{COOL_URL}}|$COOLIFY_BASE_URL|g; s~{{COOL_KEY}}~$COOLIFY_COOL_KEY~g; s|{{COOL_SERVER_UUID}}|$COOLIFY_SERVER_UUID|g; s|{{COOL_PROJECT_UUID}}|$COOLIFY_PROJECT_UUID|g; s|{{COOL_ENVIRONMENT_NAME}}|$COOL_ENVIRONMENT_NAME|g; s|{{COOL_GITHUB_APP_UUID}}|$COOLIFY_GITHUB_APP_UUID|g; s|{{COOL_GITHUB_PRIVATE_KEY_UUID}}|$COOLIFY_GITHUB_PRIVATE_KEY_UUID|g; s|{{COOL_SERVER_APP_UUID}}|$COOLIFY_SERVER_APP_UUID|g; s|{{COOL_CLIENT_APP_UUID}}|$COOLIFY_CLIENT_APP_UUID|g; s|{{COOL_GIT_PRIVATE}}|$GH_PRIVATE|g; s|{{COOL_GIT_REPO}}|$COOLIFY_GIT_REPOSITORY|g; s|{{COOL_GIT_BRANCH}}|$COOLIFY_GIT_BRANCH|g; s|{{COOL_CLIENT_DESCRIPTION}}|$COOL_CLIENT_DESCRIPTION|g; s|{{COOL_SERVER_DESCRIPTION}}|$COOL_SERVER_DESCRIPTION|g" .env.coolify); then
     echo -e "\033[33m✅ --- Successfully configured Coolify Environment file with your chosen settings ---\033[0m"
     echo
   else
@@ -1595,6 +1785,15 @@ if [ $FINISHED_COOLIFY_SETUP -eq 0 ]; then
   sed -i "" 's/FINISHED_COOLIFY_SETUP=0/FINISHED_COOLIFY_SETUP=1/' .env.coolify
 
 fi
+
+
+#
+# !!! Check to see if we are using a Public or Private Key repo !!!
+# If YES --> trigger Webhook redeployment
+server="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&force=false"
+client="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false"
+#
+
 
 echo
 echo -e "Your App is available at: \033[1;34m$WASP_WEB_CLIENT_URL\033[0m"
