@@ -238,6 +238,8 @@ EOF
       echo -e "\033[1;31mREMEMBER:\033[0m \033[33mCopy your Public Key (below) and add it to your GitHub Repo Settings under 'Deploy Keys':\033[0m"
       echo -e "$pub_key"
       echo
+      echo -e "TODO: Make sure to confirm if user copy/pasted Public Key before continuing!"
+      echo
     fi
   fi
 }
@@ -585,9 +587,11 @@ configure_some_coolify_settings() {
   if [ -z "$COOLIFY_GIT_REPOSITORY" ]; then
     while true; do
       if [ $GH_PRIVATE -eq 1 ]; then
-        read -p $'\033[33mEnter the Github App Repository (e.g. username/my-wasp-project):\033[0m ' COOLIFY_GIT_REPOSITORY
-      else
-        read -p $'\033[33mEnter the Git Repository URL (e.g. https://github.com/username/my-wasp-project):\033[0m ' COOLIFY_GIT_REPOSITORY
+        read -p $'\033[33mEnter the Github App Repository (format: username/my-wasp-project):\033[0m ' COOLIFY_GIT_REPOSITORY
+      elif [ $GH_PRIVATE -eq 0 ]; then
+        read -p $'\033[33mEnter the Public Git Repository URL (format: https://github.com/username/my-wasp-project.git):\033[0m ' COOLIFY_GIT_REPOSITORY
+      elif [ $GH_PRIVATE -eq 2 ]; then
+        read -p $'\033[33mEnter the Private Git Repository SSH (format: git@github.com:username/my-wasp-project.git):\033[0m ' COOLIFY_GIT_REPOSITORY
       fi
       if [ -z "$COOLIFY_GIT_REPOSITORY" ]; then
         echo -e "\033[31mPlease enter a valid Git Repository URL!\033[0m"
@@ -689,7 +693,7 @@ create_projects_and_deploy_dbs() {
   "instant_deploy": $server_instant_deploy
 }
 EOF
-)
+  )
   elif [ $GH_PRIVATE -eq 1 ]; then
     # Deploying from Private GitHub App
     server_payload=$(cat <<EOF
@@ -709,7 +713,27 @@ EOF
   "instant_deploy": $server_instant_deploy
 }
 EOF
-)
+  )
+  elif [ $GH_PRIVATE -eq 2 ]; then
+    # Deploying from Private Key Git Repo
+    server_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "private_key_uuid": "$github_private_key_uuid",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$server_ports_exposes",
+  "build_pack": "$server_build_pack",
+  "description": "$server_description",
+  "domains": "$server_domains",
+  "base_directory": "$server_base_directory",
+  "instant_deploy": $server_instant_deploy
+}
+EOF
+  )
   fi
 
   # DEFINE CLIENT PAYLOADS
@@ -731,7 +755,7 @@ EOF
   "instant_deploy": $client_instant_deploy
 }
 EOF
-)
+  )
   elif [ $GH_PRIVATE -eq 1 ]; then
     # Deploying from Private GitHub App
     client_payload=$(cat <<EOF
@@ -751,7 +775,27 @@ EOF
   "instant_deploy": $client_instant_deploy
 }
 EOF
-)
+  )
+  elif [ $GH_PRIVATE -eq 2 ]; then
+    # Deploying from Private GitHub App
+    client_payload=$(cat <<EOF
+{
+  "project_uuid": "$project_uuid",
+  "server_uuid": "$server_uuid",
+  "environment_name": "$environment_name",
+  "private_key_uuid": "$github_private_key_uuid",
+  "git_repository": "$git_repository",
+  "git_branch": "$git_branch",
+  "git_commit_sha": "$git_commit_sha",
+  "ports_exposes": "$client_ports_exposes",
+  "build_pack": "$client_build_pack",
+  "description": "$client_description",
+  "domains": "$client_domains",
+  "base_directory": "$client_base_directory",
+  "instant_deploy": $client_instant_deploy
+}
+EOF
+  )
   fi
 
   # Check if we need to setup a dB
@@ -805,6 +849,13 @@ EOF
       --header "$BEARER" \
       --header 'Content-Type: application/json' \
       -d "$server_payload")
+  elif [ $GH_PRIVATE -eq 2 ]; then
+    # Deploying from Private Key Git Repo
+    coolify_server_return=$(curl -s --request POST \
+      --url $COOLIFY_BASE_URL/api/v1/applications/private-deploy-key \
+      --header "$BEARER" \
+      --header 'Content-Type: application/json' \
+      -d "$server_payload")
   fi
   configured_server_uuid=$(jq -r ".uuid" <<< "$coolify_server_return")
   possible_server_error=$(jq -r ".error" <<< "$coolify_server_return")
@@ -846,6 +897,13 @@ EOF
     # Deploying from Private GitHub App
     coolify_client_return=$(curl -s --request POST \
       --url $COOLIFY_BASE_URL/api/v1/applications/private-github-app \
+      --header "$BEARER" \
+      --header 'Content-Type: application/json' \
+      -d "$client_payload")
+  elif [ $GH_PRIVATE -eq 2 ]; then
+    # Deploying from Private Key Git Repo
+    coolify_client_return=$(curl -s --request POST \
+      --url $COOLIFY_BASE_URL/api/v1/applications/private-deploy-key \
       --header "$BEARER" \
       --header 'Content-Type: application/json' \
       -d "$client_payload")
@@ -1561,6 +1619,8 @@ echo -e "\033[1;33m - Coolify Backend App UUID:\033[0m \033[32m$configured_serve
 echo -e "\033[1;33m - Coolify Environment Name:\033[0m \033[32m$environment_name\033[0m"
 if [ $GH_PRIVATE -eq 1 ]; then
   echo -e "\033[1;33m - Using Github App Key:\033[0m \033[32m$github_app_uuid\033[0m"
+elif [ $GH_PRIVATE -eq 2 ]; then
+  echo -e "\033[1;33m - Using Private Deploy Key:\033[0m \033[32m$github_private_key_uuid\033[0m"
 fi
 echo -e "\033[1;33m - Database URI:\033[0m \033[31m$DATABASE_URL\033[0m"
 echo -e "\033[1;33m - Local Project Directory:\033[0m $WASP_PROJECT_DIR"
@@ -1798,13 +1858,15 @@ server="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&for
 client="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false"
 #
 
+echo -e "$server"
+echo -e "$client"
 
 echo
 echo -e "Your App is available at: \033[1;34m$WASP_WEB_CLIENT_URL\033[0m"
 echo
 
 if [ ! -z "$dev_db_port" ]; then
-  echo -e "033[1;43mRemember to expose port '$dev_db_port' on your server's firewall to allow access to the Development Database.\033[0m"
+  echo -e "\033[1;43mRemember to expose port '$dev_db_port' on your server's firewall to allow access to the Development Database.\033[0m"
   echo
 fi
 
@@ -1820,7 +1882,7 @@ if [ $elapsed_time -gt 59 ]; then
     if [ $minutes -gt 1 ]; then
       MINUTE_SUFIX="minutes"
     fi
-    echo -e "\033[1;33m🎉 --- DEPLOYMENT COMPLETED IN: $minutes $MINUTE_SUFIX and $seconds seconds!\033[0m"
+    echo -e "\033[1;43m🎉 --- DEPLOYMENT COMPLETED IN: $minutes $MINUTE_SUFIX and $seconds seconds!\033[0m"
 else
     echo -e "\033[1;33m🎉 --- DEPLOYMENT COMPLETED IN: $elapsed_time seconds!\033[0m"
 fi
