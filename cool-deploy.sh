@@ -7,7 +7,6 @@ FIRST_TIME_RUN=0
 NEED_DB_SETUP=0
 NEED_DEV_DB_SETUP=0
 BEARER=""
-# GH_PRIVATE=0 # 0 = Public; 1 = Private Github App; 2 = Private Key Git Repo
 COOLIFY_GITHUB_APP_UUID=""
 COOLIFY_GITHUB_PRIVATE_KEY_UUID=""
 COOLIFY_GIT_COMMIT_SHA="HEAD"
@@ -28,7 +27,7 @@ if [ -z "$WASP_VERSION" ]; then
   WASP_VERSION="unknownVersion"
 fi
 
-# CLI Args
+# TODO: CLI Args
 # - init      (let script continue as normal and it will configure. If .env.coolify exists, error out)
 # - start db  (start dev db on Coolify)
 # - stop db   (stop dev db on Coolify)
@@ -811,7 +810,7 @@ EOF
   "instant_deploy": true
 }
 EOF
-)
+  )
   fi
 
   # Similarly, do we need a dev dB?
@@ -828,7 +827,7 @@ EOF
   "instant_deploy": true
 }
 EOF
-)
+  )
   fi
 
   echo -e "\033[1;32m🤖 --- SETTING UP & CONFIGURING COOLIFY APPS for FRONTEND and BACKEND... ---\033[0m"
@@ -1845,29 +1844,53 @@ if [ $FINISHED_COOLIFY_SETUP -eq 0 ]; then
       echo
     fi
   fi
-  FINISHED_COOLIFY_SETUP=1
   sed -i "" 's/FINISHED_COOLIFY_SETUP=0/FINISHED_COOLIFY_SETUP=1/' .env.coolify
-
 fi
 
 # If Source is Private Key Deploy or Public Repo, trigger Webhook redeployment
-if [ $GH_PRIVATE -eq 1 ] || [ $GH_PRIVATE -eq 2 ]; then
-  server="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&force=false"
-  client="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false"
-  echo -e "$server"
-  echo -e "$client"
-  echo
-  server_manual_redeploy=$(curl -s --request GET \
-      --url "$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&force=false" \
-      --header "$BEARER")
-  client_manual_redeploy=$(curl -s --request GET \
-      --url "$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false" \
-      --header "$BEARER")
-  echo -e "$server_manual_redeploy"
-  echo -e "$client_manual_redeploy"
-  echo
+if [ $FINISHED_COOLIFY_SETUP -eq 1 ]; then
+  if [ $GH_PRIVATE -eq 0 ] || [ $GH_PRIVATE -eq 2 ]; then
+    server="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&force=false"
+    client="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false"
+    echo
+
+    # Trigger Server Redeployment
+    server_manual_redeploy=$(curl -s --request GET \
+        --url "$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&force=false" \
+        --header "$BEARER")
+    possible_server_message=$(jq -r ".deployments[0].message" <<< "$server_manual_redeploy")
+    possible_server_resource_uuid=$(jq -r ".deployments[0].resource_uuid" <<< "$server_manual_redeploy")
+    possible_server_deployment_uuid=$(jq -r ".deployments[0].deployment_uuid" <<< "$server_manual_redeploy")
+    if [ "$possible_server_deployment_uuid" == "null" ]; then
+      echo
+      echo -e "$server_manual_redeploy"
+      echo
+      echo -e "\033[1;31m💀 --- ERROR: Could not trigger redeployment of Server App! See above for possible details... ---\033[0m"
+      echo
+    else
+      echo -e "\033[33m✅ --- Success: $possible_server_message ---\033[0m"
+    fi
+
+    # Trigger Client Redeployment
+    client_manual_redeploy=$(curl -s --request GET \
+        --url "$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false" \
+        --header "$BEARER")
+    possible_client_message=$(jq -r ".deployments[0].message" <<< "$client_manual_redeploy")
+    possible_client_resource_uuid=$(jq -r ".deployments[0].resource_uuid" <<< "$clientmanual_redeploy")
+    possible_client_deployment_uuid=$(jq -r ".deployments[0].deployment_uuid" <<< "$client_manual_redeploy")
+    if [ "$possible_client_deployment_uuid" == "null" ]; then
+      echo
+      echo -e "$client_manual_redeploy"
+      echo
+      echo -e "\033[1;31m💀 --- ERROR: Could not trigger redeployment of Client App! See above for possible details... ---\033[0m"
+      echo
+    else
+      echo -e "\033[33m✅ --- Success: $possible_client_message ---\033[0m"
+    fi
+  fi
 fi
 
+echo
 echo
 echo -e "Your App is available at: \033[1;34m$WASP_WEB_CLIENT_URL\033[0m"
 echo
