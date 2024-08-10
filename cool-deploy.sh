@@ -1,4 +1,5 @@
 #!/bin/bash
+COOL_DEPLOY_VERSION="1.0.0"
 
 # Some project variables
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
