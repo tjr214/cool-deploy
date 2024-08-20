@@ -16,7 +16,7 @@ curl -fsSL -o cool-deploy.sh https://github.com/tjr214/cool-deploy/raw/main/cool
 ./cool-deploy.sh
 ```
 
-3. There are currently 3 ways to deploy your Wasp App via Coolify:
+3. There are currently 3 ways to deploy your Wasp App to Coolify:
 
 - Git Repo Private Key Deployment **(Recommended)**
 - Private GitHub App _(NOT CURRENTLY WORKING!!!)_
@@ -40,8 +40,8 @@ You can add a commit message to each deployment by running:
 
 ## Brief Roadmap
 
-- [x] Add support for custom Client-side environment variables
-- [x] Add support for custom Server-side environment variables
+- [x] ~~Add support for custom Client-side environment variables~~
+- [x] ~~Add support for custom Server-side environment variables~~
 - [ ] Setup and deploy a Plausible Analytics server on Coolify for OpenSaaS
 - [ ] Add command line options to control script a bit
 - [ ] Let script spin up and spin down the dev dB on Coolify via command line options
