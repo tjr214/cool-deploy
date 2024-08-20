@@ -41,6 +41,7 @@ You can add a commit message to each deployment by running:
 ## TODOs
 
 - [ ] Add support for OpenSaaS 2.0 Deployments
-- [ ] Add support for custom Client-side environment variables
+- [x] Add support for custom Client-side environment variables
 - [ ] Add support for custom Server-side environment variables
 - [ ] Setup and deploy a Plausible Analytics server on Coolify for OpenSaaS
+- [ ] Maybe some cool little ASCII Art?

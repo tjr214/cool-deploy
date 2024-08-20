@@ -1719,7 +1719,7 @@ if ! wasp clean; then
 fi
 
 echo
-echo -e "\033[1;32m🤖 --- BUILDING SERVER...\033[0m"
+echo -e "\033[1;32m🤖 --- BUILDING YOUR SERVER...\033[0m"
 cd $WASP_PROJECT_DIR
 if ! wasp build; then
   echo -e "\033[1;31m💀 --- ERROR: Server Build Failure Occured! Check above for details. ---\033[0m"
@@ -1728,10 +1728,40 @@ if ! wasp build; then
 fi
 
 echo
-echo -e "\033[1;32m🤖 --- BUILDING & BUNDLING CLIENT (REACT_APP_API_URL: \033[1;31m$REACT_APP_API_URL\033[1;32m)\033[0m"
+echo -e "\033[1;32m🤖 --- BUILDING & BUNDLING YOUR CLIENT (REACT_APP_API_URL: \033[1;31m$REACT_APP_API_URL\033[1;32m)\033[0m"
+REACT_APP_CLIENT_ENV_STRING=""
+if [ -e ".env.client" ]; then # If there is a custom client env file, use it
+  echo
+  echo -e "\033[34mFound and applying custom \`.env.client\` file.\033[0m"
+  echo
+
+  # Declare an array to store the client env variables
+  declare -a client_env_array
+
+  # Read the client env file line by line and split into key-value pairs
+  while IFS='=' read -r key value; do # move the input into the array
+    # We are only interested in the `REACT_APP_` variables
+    if [[ $key == REACT_APP_* ]]; then
+        client_env_array+=("${key}" "${value}")
+    fi
+  done < .env.client # redirect the client env file to the `read` command
+
+  # DEBUG: Print the array
+  # for ((i=0; i<${#client_env_array[@]}; i+=2)); do
+  #   echo -e "Key: ${client_env_array[$i]}, Value: ${client_env_array[$i+1]}"
+  # done
+
+  for ((i=0; i<${#client_env_array[@]}; i+=2)); do
+    REACT_APP_CLIENT_ENV_STRING="${REACT_APP_CLIENT_ENV_STRING}${client_env_array[$i]}=${client_env_array[$i+1]} "
+  done
+fi
+REACT_APP_CLIENT_ENV_STRING="REACT_APP_API_URL=${REACT_APP_API_URL} ${REACT_APP_CLIENT_ENV_STRING}"
+
+# Now we can build/bundle the client
 cd $WASP_PROJECT_DIR
 cd .wasp/build/web-app
-if ! (npm install && REACT_APP_API_URL=$REACT_APP_API_URL npm run build); then
+if ! (npm install && eval "$REACT_APP_CLIENT_ENV_STRING" npm run build); then
+  echo
   echo -e "\033[1;31m💀 --- ERROR: Client Build Failure Occured! Check above for details. ---\033[0m"
   echo
   exit 1
