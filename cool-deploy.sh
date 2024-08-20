@@ -1,5 +1,5 @@
 #!/bin/bash
-COOL_DEPLOY_VERSION="1.0.0"
+COOL_DEPLOY_VERSION="1.1.2"
 
 # Some project variables
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -382,10 +382,39 @@ EOF
     echo
     exit 1
   else
-    if [ "$possible_env_uuid" == "null" ]; then # If the UUID is null, we can assume the setup failed
+    if [ "$possible_env_uuid" == "null" ]; then # If the UUID is null, we may need to update the env
+      local update_env_return=$(curl -s --request PATCH \
+        --url $COOLIFY_BASE_URL/api/v1/applications/$configured_server_uuid/envs \
+        --header "$BEARER" \
+        --header 'Content-Type: application/json' \
+        -d "$env_payload")
+      local possible_update_env_uuid=$(jq -r ".uuid" <<< "$update_env_return")
+      local possible_update_env_error=$(jq -r ".error" <<< "$update_env_return")
+      local possible_update_env_msg=$(jq -r ".message" <<< "$update_env_return")
+      if [ ! "$possible_update_env_error" == "null" ]; then
+        echo -e "$env_payload"
+        echo
+        echo -e "$possible_update_env_error"
+        echo -e "$possible_update_env_msg"
+        echo
+        echo -e "\033[1;31m💀 --- COOLIFY ERROR: Server Update Env Variable Failed! See above for possible details... ---\033[0m"
+        echo
+        exit 1
+      else
+        if [ "$possible_update_env_uuid" == "null" ]; then # If the UUID is null, NOW we can assume it all failed
+          echo -e "$update_env_return" # May not even be JSON, print it out
+          echo
+          echo -e "\033[1;31m💀 --- COOLIFY ERROR: Server Update Env Variable Failed! See above for possible details... ---\033[0m"
+          echo
+          exit 1
+        else # If we got here, we can assume a successful setup
+          return 0
+        fi
+      fi
+      # If we got here, error out. Original set env call return may not have even been JSON
       echo -e "$env_return" # May not even be JSON, print it out
       echo
-      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Could not create new Server App! See above for possible details... ---\033[0m"
+      echo -e "\033[1;31m💀 --- COOLIFY ERROR: Server Set Env Variable Failed! See above for possible details... ---\033[0m"
       echo
       exit 1
     else # If we got here, we can assume a successful setup
@@ -1483,12 +1512,12 @@ FINISHED_COOLIFY_SETUP=0" > .env.coolify); then
   fi
 
   if ! grep -q -z -E "DATABASE_URL" .env.server; then
-    if [ -z "$DEV_DATABASE_URL" ]; then
-      echo "# Database URL for DEVELOPMENT ONLY (Production dB URL is set in Env Vars in Coolify)" >> .env.server
+    echo "# Database URL for DEVELOPMENT ONLY (Production dB URL is set in Env Vars in Coolify)" >> .env.server
+    echo "# You can also let Wasp run a local PostgreSQL dB by running \`wasp start db\` in a separate terminal window. " >> .env.server
+    if [ -z "$DEV_DATABASE_URL" ]; then  
       echo "# DATABASE_URL=" >> .env.server
       echo -e "\033[33m✅ --- Added space for 'DATABASE_URL' to \`.env.server\` for Local Development ---\033[0m"
     else
-      echo "# Database URL for DEVELOPMENT ONLY (Production dB URL is set in Env Vars in Coolify)" >> .env.server
       echo "DATABASE_URL=$DEV_DATABASE_URL" >> .env.server
       echo -e "\033[33m✅ --- Added Development dB URL to \`.env.server\` for Local Development ---\033[0m"
     fi
@@ -1719,7 +1748,7 @@ if ! wasp clean; then
 fi
 
 echo
-echo -e "\033[1;32m🤖 --- BUILDING SERVER...\033[0m"
+echo -e "\033[1;32m🤖 --- BUILDING YOUR SERVER...\033[0m"
 cd $WASP_PROJECT_DIR
 if ! wasp build; then
   echo -e "\033[1;31m💀 --- ERROR: Server Build Failure Occured! Check above for details. ---\033[0m"
@@ -1728,10 +1757,37 @@ if ! wasp build; then
 fi
 
 echo
-echo -e "\033[1;32m🤖 --- BUILDING & BUNDLING CLIENT (REACT_APP_API_URL: \033[1;31m$REACT_APP_API_URL\033[1;32m)\033[0m"
+echo -e "\033[1;32m🤖 --- BUILDING & BUNDLING YOUR CLIENT (REACT_APP_API_URL: \033[1;31m$REACT_APP_API_URL\033[1;32m)\033[0m"
+REACT_APP_CLIENT_ENV_STRING=""
+if [ -e ".env.client" ]; then # If there is a custom client env file, use it
+  echo
+  echo -e "\033[34mFound and applying custom \`.env.client\` file.\033[0m"
+
+  # Declare an array to store the client env variables
+  declare -a client_env_array
+
+  # Read the client env file line by line and split into key-value pairs
+  while IFS='=' read -r key value; do # move the input into the array
+    # We are only interested in the `REACT_APP_` variables
+    if [[ $key == REACT_APP_* ]]; then
+        client_env_array+=("${key}" "${value}")
+    fi
+  done < .env.client # redirect the client env file to the `read` command
+  # DEBUG: Print the array
+  # for ((i=0; i<${#client_env_array[@]}; i+=2)); do
+  #   echo -e "Key: ${client_env_array[$i]}, Value: ${client_env_array[$i+1]}"
+  # done
+  for ((i=0; i<${#client_env_array[@]}; i+=2)); do
+    REACT_APP_CLIENT_ENV_STRING="${REACT_APP_CLIENT_ENV_STRING}${client_env_array[$i]}=${client_env_array[$i+1]} "
+  done
+fi
+REACT_APP_CLIENT_ENV_STRING="REACT_APP_API_URL=${REACT_APP_API_URL} ${REACT_APP_CLIENT_ENV_STRING}"
+
+# Now we can build/bundle the client
 cd $WASP_PROJECT_DIR
 cd .wasp/build/web-app
-if ! (npm install && REACT_APP_API_URL=$REACT_APP_API_URL npm run build); then
+if ! (npm install && eval "$REACT_APP_CLIENT_ENV_STRING" npm run build); then
+  echo
   echo -e "\033[1;31m💀 --- ERROR: Client Build Failure Occured! Check above for details. ---\033[0m"
   echo
   exit 1
@@ -1775,7 +1831,65 @@ if git push; then
 else
   echo
   echo -e "\033[1;31m🛑 --- Failed to push Anything to GitHub! ---\033[0m"
+  exit 1
 fi
+
+echo
+echo -e "\033[1;32m🤖 --- UPDATING ANY BACKEND ENV VARIABLES...\033[0m"
+echo
+
+# Update the Server Env Vars
+set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL"
+set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL"
+set_server_env "PORT" "$PORT"
+set_server_env "JWT_SECRET" "$JWT_SECRET"
+set_server_env "DATABASE_URL" "$DATABASE_URL"
+
+# And again for the Preview Deploys
+set_server_env "WASP_WEB_CLIENT_URL" "$WASP_WEB_CLIENT_URL" true
+set_server_env "WASP_SERVER_URL" "$WASP_SERVER_URL" true
+set_server_env "PORT" "$PORT" true
+set_server_env "JWT_SECRET" "$JWT_SECRET" true
+set_server_env "DATABASE_URL" "$DATABASE_URL" true
+  
+if [ -e ".env.server" ]; then # Check for custom env vars
+  echo -e "\033[34mFound and applying custom \`.env.server\` file.\033[0m"
+
+  # Declare an array to store the client env variables
+  declare -a server_env_array
+
+  # Read the client env file line by line and split into key-value pairs
+  while IFS='=' read -r key value; do # move the input into the array
+    if [[ $key != "" ]]; then # Don't want empty lines
+      if [[ $key != DATABASE_URL ]]; then # Ignore the dev db url
+        if [[ $key != JWT_SECRET ]]; then # Ignore the dev JWT secret
+          if [[ $key != PORT ]]; then # Ignore the dev server port
+            if [[ $key != [#[:space:]]* ]]; then # Ignore comments and whitespace
+                server_env_array+=("${key}" "${value}")
+            fi
+          fi
+        fi
+      fi
+    fi
+  done < .env.server # redirect the client env file to the `read` command
+  # DEBUG: Print the array
+  # for ((i=0; i<${#server_env_array[@]}; i+=2)); do
+  #   echo "Key: ${server_env_array[$i]}, Value: ${server_env_array[$i+1]}"
+  # done
+
+  # Set the env vars
+  for ((i=0; i<${#server_env_array[@]}; i+=2)); do
+    set_server_env "${server_env_array[$i]}" "${server_env_array[$i+1]}"
+  done
+
+  # And again for the Preview Deploys
+  for ((i=0; i<${#server_env_array[@]}; i+=2)); do
+    set_server_env "${server_env_array[$i]}" "${server_env_array[$i+1]}" true
+  done
+fi
+
+echo
+echo -e "\033[33m✅ --- Successfully updated any neccesary Environment Variables for the Backend ---\033[0m"
 
 # If we haven't finished the Coolify setup, start the containers
 if [ $FINISHED_COOLIFY_SETUP -eq 0 ]; then
@@ -1851,9 +1965,12 @@ fi
 # If Source is Private Key Deploy or Public Repo, trigger Webhook redeployment
 if [ $FINISHED_COOLIFY_SETUP -eq 1 ]; then
   if [ $GH_PRIVATE -eq 0 ] || [ $GH_PRIVATE -eq 2 ]; then
+    echo
+    echo -e "\033[1;32m🤖 --- TRIGGERING COOLIFY REDEPLOYMENT...\033[0m"
+    echo
+
     server="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_server_uuid&force=false"
     client="https://$COOLIFY_BASE_URL/api/v1/deploy?uuid=$configured_client_uuid&force=false"
-    echo
 
     # Trigger Server Redeployment
     server_manual_redeploy=$(curl -s --request GET \
@@ -1869,7 +1986,7 @@ if [ $FINISHED_COOLIFY_SETUP -eq 1 ]; then
       echo -e "\033[1;31m💀 --- ERROR: Could not trigger redeployment of Server App! See above for possible details... ---\033[0m"
       echo
     else
-      echo -e "\033[33m✅ --- Success: $possible_server_message ---\033[0m"
+      echo -e "\033[33m✅ --- Backend Success: $possible_server_message ---\033[0m"
     fi
 
     # Trigger Client Redeployment
@@ -1886,12 +2003,13 @@ if [ $FINISHED_COOLIFY_SETUP -eq 1 ]; then
       echo -e "\033[1;31m💀 --- ERROR: Could not trigger redeployment of Client App! See above for possible details... ---\033[0m"
       echo
     else
-      echo -e "\033[33m✅ --- Success: $possible_client_message ---\033[0m"
+      echo -e "\033[33m✅ --- Frontend Success: $possible_client_message ---\033[0m"
     fi
   fi
 fi
 
 echo
+echo -e "TODO: Perhaps some celebratory ASCII Art here?"
 echo
 echo -e "Your App is available at: \033[1;34m$WASP_WEB_CLIENT_URL\033[0m"
 echo

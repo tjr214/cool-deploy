@@ -38,9 +38,12 @@ You can add a commit message to each deployment by running:
 ./cool-deploy.sh "My Commit Message"
 ```
 
-## TODOs
+## BRIEF ROADMAP
 
-- [ ] Add support for OpenSaaS 2.0 Deployments
-- [ ] Add support for custom Client-side environment variables
-- [ ] Add support for custom Server-side environment variables
+- [x] Add support for custom Client-side environment variables
+- [x] Add support for custom Server-side environment variables
 - [ ] Setup and deploy a Plausible Analytics server on Coolify for OpenSaaS
+- [ ] Add command line options to control script a bit
+- [ ] Let script spin up and spin down the dev dB on Coolify via command line options
+- [ ] Add support for OpenSaaS 2.0 Blog and Deployments
+- [ ] Maybe some cool little ASCII Art?
