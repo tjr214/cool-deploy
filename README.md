@@ -38,7 +38,7 @@ You can add a commit message to each deployment by running:
 ./cool-deploy.sh "My Commit Message"
 ```
 
-## BRIEF ROADMAP
+## Brief Roadmap
 
 - [x] Add support for custom Client-side environment variables
 - [x] Add support for custom Server-side environment variables
