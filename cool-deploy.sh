@@ -33,7 +33,7 @@ fi
 # - start db  (start dev db on Coolify)
 # - stop db   (stop dev db on Coolify)
 # - status    (show status of Frontend and Backend on Coolify)
-# - redeploy  (trigger manual redeployment)
+# - restart   (trigger manual redeployment of containers)
 # - msg "x"   (set a commit message for the deployment)
 
 
