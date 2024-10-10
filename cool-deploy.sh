@@ -541,7 +541,7 @@ configure_some_coolify_settings() {
   # Get the Source to clone from
   if [ -z "$GH_PRIVATE" ]; then
     while true; do
-      read -p $'\033[33mEnter the Source Type (0 = Public Github; 1 = Pivate Github App; 2 = Private Key):\033[0m ' GH_PRIVATE
+      read -p $'\033[33mEnter the Source Type (0 = Public Github; 1 = Private Github App; 2 = Private Key):\033[0m ' GH_PRIVATE
       if [ -z "$GH_PRIVATE" ]; then
         echo -e "\033[31mPlease enter something valid!\033[0m"
       elif ! [[ "$GH_PRIVATE" =~ ^[0-9]+$ ]]; then
@@ -550,6 +550,8 @@ configure_some_coolify_settings() {
         echo -e "\033[31mPlease enter a number in the range of 0-2 inclusive!\033[0m"
       elif [ "$GH_PRIVATE" -lt 0 ]; then
         echo -e "\033[31mNow you're just being a brat\033[0m"
+      elif [ "$GH_PRIVATE" -eq 1 ]; then
+        echo -e "\033[31mERROR:\033[0m \033[33mPrivate Github App is currently not supported! Please choose either Public Repo or Private Key Deployment.\033[0m"
       else
         break
       fi
