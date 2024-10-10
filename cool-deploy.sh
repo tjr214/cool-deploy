@@ -5,6 +5,7 @@ COOL_DEPLOY_VERSION="1.1.2"
 WASP_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PARENT_DIR=$(dirname "$WASP_PROJECT_DIR")
 FIRST_TIME_RUN=0
+DO_INIT=0
 NEED_DB_SETUP=0
 NEED_DEV_DB_SETUP=0
 BEARER=""
@@ -28,13 +29,81 @@ if [ -z "$WASP_VERSION" ]; then
   WASP_VERSION="unknownVersion"
 fi
 
-# TODO: CLI Args
-# - init      (let script continue as normal and it will configure. If .env.coolify exists, error out)
-# - start db  (start dev db on Coolify)
-# - stop db   (stop dev db on Coolify)
-# - status    (show status of Frontend and Backend on Coolify)
-# - restart   (trigger manual redeployment of containers)
-# - msg "x"   (set a commit message for the deployment)
+# CLI Args
+COMMAND=""
+COMMIT_MSG=""
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    init)
+      COMMAND="init"
+      shift
+      ;;
+    status)
+      COMMAND="status"
+      shift
+      ;;
+    restart)
+      COMMAND="restart"
+      shift
+      ;;
+    msg)
+      COMMAND="msg"
+      COMMIT_MSG="$2"
+      shift 2
+      ;;
+    *)
+      echo -e "\033[31mUnknown option:\033[0m $1"
+      echo -e "\033[1;36mUsage:\033[0m $0 [\033[1;33minit\033[0m|\033[1;33mstatus\033[0m|\033[1;33mrestart\033[0m|\033[1;33mmsg\033[0m \"\033[1;32mcommit message\033[0m\"]"
+      exit 1
+      ;;
+  esac
+done
+
+# Function to check if .env.coolify exists
+check_env_coolify() {
+  if [ -f ".env.coolify" ]; then
+    echo "Error: .env.coolify already exists. Cannot run init command."
+    exit 1
+  fi
+}
+
+# Function to load .env.coolify
+load_env_coolify() {
+  if [ ! -f ".env.coolify" ]; then
+    echo "Error: .env.coolify does not exist. Please run init command first."
+    exit 1
+  fi
+  source .env.coolify
+}
+
+# Handle commands
+case $COMMAND in
+  init)
+    check_env_coolify
+    DO_INIT=1
+    # The rest of the init logic will be handled by the existing script
+    ;;
+  status)
+    load_env_coolify
+    echo "Fetching status of Frontend and Backend on Coolify..."
+    # TODO: Implement status check logic here
+    ;;
+  restart)
+    load_env_coolify
+    echo "Triggering manual redeployment of containers..."
+    # TODO: Implement restart logic here
+    ;;
+  msg)
+    load_env_coolify
+    echo "Setting commit message for deployment: $COMMIT_MSG"
+    # The commit message will be used in the existing deployment logic
+    ;;
+  *)
+    # If no command is provided, continue with the existing script logic
+    ;;
+esac
 
 
 # ------------------------------------------------------------------------------
@@ -1191,6 +1260,14 @@ if [ -e ".env.coolify" ]; then
   run_coolify_healthcheck
   configure_some_coolify_settings # if any of this is missing, go grab it from the user
 else # Configure our `cool-deploy`` script!
+  
+  if [ $DO_INIT -eq 0 ]; then
+    echo -e "\033[1;31m🛑 --- ERROR: .env.coolify file not found! ---\033[0m"
+    echo -e "\033[33mPlease run \033[1;36m./cool-deploy.sh init\033[33m first to set up your Coolify environment.\033[0m"
+    echo
+    exit 0
+  fi
+
   echo -e "\033[1;32m🤖 --- LET'S GET COOL-DEPLOY SET UP! ---\033[0m"
   SETTINGS_CONFIRM=0
   FIRST_TIME_RUN=1
